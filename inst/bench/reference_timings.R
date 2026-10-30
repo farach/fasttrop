@@ -1,15 +1,16 @@
-# Matched timings against the reference implementations (council condition C4,
-# open defeater D-A-O1).
+# Condition C4 of the council: times of fasttrop and the other implementations
+# for the same calculations.
 #
-# Same panels, same fixed tuning parameters, and each package's default solver
-# settings. fasttrop runs with 1 and 4 threads; cfcompare (pure R) with its
-# per-cell estimator; the Python references are timed by reference_timings.py,
-# which this script runs first if the Python results are missing.
+# The script uses the same panels and the same fixed tuning parameters for
+# each package. Each package uses its default solver options. The package
+# fasttrop runs with 1 thread and with 4 threads. The package cfcompare runs in
+# R only, with its estimator for each cell. The script reference_timings.py
+# measures the Python packages. This script does not run reference_timings.py.
 #
-# Usage (from the package root):
+# Usage, in the package folder:
 #   Rscript inst/bench/reference_timings.R            # fasttrop and cfcompare
 #   python inst/bench/reference_timings.py <trop> <diff-diff>
-#   Rscript inst/bench/reference_timings.R combine    # merge into one table
+#   Rscript inst/bench/reference_timings.R combine    # one table for all
 library(fasttrop)
 bench <- file.path("inst", "bench")
 lam <- c(time = 0.3, unit = 0.8, nn = 0.5)

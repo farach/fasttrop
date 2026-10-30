@@ -1,27 +1,33 @@
-# Council condition C3: known-truth Monte Carlo under block assignment with a
-# factor model (the setting of the paper's Theorem 5.1).
+# Condition C3 of the council: simulations with a known effect. The
+# simulations use a block design and a factor model. This is the setting of
+# Theorem 5.1 of the paper.
 #
-# Untreated outcomes have unit and time effects, two factors, and noise. The
-# first factor is a fixed linear trend and the second is drawn once and held
-# fixed. The treatment effect is constant, tau = 1, in the last k periods.
-#   Design A:  N = 40, T = 16, N1 = 10 treated, k = 4. Treated units are drawn
-#              at random, so every estimator is unbiased.
-#   Design A2: as A with N = 80, T = 12, N1 = 30, k = 3, to check bootstrap
-#              coverage with more treated units (the paper's Algorithm 3 needs a
-#              growing number of treated units).
-#   Design B:  as A, but treatment is selected on the trend loading, so treated
-#              units trend differently and two-way fixed effects (TWFE) is
-#              biased by construction. This design measures how much of that
-#              bias TROP removes.
+# The untreated outcomes have unit effects, time effects, two factors, and
+# noise. The first factor is a fixed linear trend. The script draws the second
+# factor one time and then keeps it fixed. The treatment effect is 1 in the
+# last k periods.
+#   Simulation A:  N = 40, T = 16, 10 treated units, k = 4. The treated units
+#                  are a random sample. Thus, all estimators are unbiased.
+#   Simulation A2: as A, but N = 80, T = 12, 30 treated units, and k = 3. This
+#                  simulation examines the bootstrap coverage with more treated
+#                  units. The theory for Algorithm 3 of the paper is for a
+#                  large number of treated units.
+#   Simulation B:  as A, but the trend loading selects the treated units.
+#                  Thus, the treated units have a different trend, and two-way
+#                  fixed effects (TWFE) has a bias. This simulation measures
+#                  how much of this bias TROP removes.
 #
-# Methods: TWFE (lambda = (0, 0, Inf)) with the same unit bootstrap; TROP local
-# tuned by leave-one-out CV on 80 sampled untreated cells; TROP global tuned by
-# placebo CV (50 sets). Standard errors come from the unit bootstrap of
-# Algorithm 3 (stratified), tuning held fixed. Coverage is reported for 95%
-# normal intervals (estimate +/- 1.96 SE) and for percentile intervals of the
-# bootstrap draws.
+# Methods:
+#   - TWFE (lambda = (0, 0, Inf)) with the same unit bootstrap
+#   - The local method, with tuning by the leave-one-out criterion on 80
+#     sampled untreated cells
+#   - The global method, with tuning by placebo cross-validation on 50 sets
+# The standard errors come from the stratified unit bootstrap of Algorithm 3.
+# The tuning parameters stay fixed in the bootstrap. The script gives the
+# coverage of the 95% normal intervals (estimate +/- 1.96 SE) and of the
+# percentile intervals.
 #
-# Usage (from the package root):
+# Usage, in the package folder:
 #   Rscript inst/validation/known_truth.R [reps] [threads] [design]
 library(fasttrop)
 args <- commandArgs(trailingOnly = TRUE)

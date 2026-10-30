@@ -1,14 +1,15 @@
-"""Matched timings for the Python TROP references (council condition C4, D-A-O1).
+"""Times of the Python TROP packages (condition C4 of the council).
 
-Times the same fixed-lambda computations that inst/bench/reference_timings.R
-times for fasttrop and cfcompare, on the same panels, with each package's
-default solver settings:
+This script measures the same calculations as inst/bench/reference_timings.R,
+on the same panels and with the same fixed tuning parameters. Each package
+uses its default solver options. The script measures these calculations:
 
-* diff-diff (pure Python, no Rust extension): local TROP ATT, global ATT, and
-  one leave-one-out evaluation Q(lambda) over every untreated cell.
-* trop (the paper authors' package): global ATT via CVXPY.
+* diff-diff (in Python only, without the Rust extension): the local ATT, the
+  global ATT, and one calculation of the leave-one-out criterion Q(lambda) for
+  all untreated cells.
+* trop (the package of the authors of the paper): the global ATT with CVXPY.
 
-Usage (from the package root, after reference_timings.R has written the panels):
+Usage, in the package folder, after reference_timings.R writes the panels:
     python inst/bench/reference_timings.py <path-to-TROP-Estimator> <path-to-diff-diff>
 """
 import sys

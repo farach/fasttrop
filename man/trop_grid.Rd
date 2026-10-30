@@ -11,19 +11,25 @@ trop_grid(
 )
 }
 \arguments{
-\item{time}{Candidate values of the time-weight decay \code{lambda_time} (finite, >= 0).}
+\item{time}{The candidate values for the decay of the time weights. The
+values must be finite and 0 or more.}
 
-\item{unit}{Candidate values of the unit-weight decay \code{lambda_unit} (finite, >= 0).}
+\item{unit}{The candidate values for the decay of the unit weights. The
+values must be finite and 0 or more.}
 
-\item{nn}{Candidate values of the nuclear-norm penalty \code{lambda_nn} (> 0, may include \code{Inf}).}
+\item{nn}{The candidate values for the nuclear-norm penalty. The values must
+be 0 or more. You can use \code{Inf}.}
 }
 \value{
-A list with numeric vectors \code{time}, \code{unit}, and \code{nn}.
+A list of class \code{trop_grid} with the numeric vectors \code{time}, \code{unit},
+and \code{nn}.
 }
 \description{
-Candidate values for the time-decay, unit-decay, and nuclear-norm tuning
-parameters. A value of 0 for \code{time} or \code{unit} gives uniform weights;
-\code{Inf} for \code{nn} disables the low-rank component (two-way fixed effects only).
+\code{trop_grid()} gives the candidate values of the three tuning parameters.
+These parameters are the decay of the time weights, the decay of the unit
+weights, and the nuclear-norm penalty. A value of 0 for \code{time} or \code{unit} gives
+equal weights. A value of \code{Inf} for \code{nn} removes the low-rank term. Then the
+model has only two-way fixed effects.
 }
 \examples{
 trop_grid(nn = c(0.1, 1, Inf))

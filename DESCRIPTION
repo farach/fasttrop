@@ -5,11 +5,12 @@ Authors@R:
     person("Alex", "Farach", email = "alexfarach@microsoft.com",
            role = c("aut", "cre", "cph"))
 Description: The Triply Robust Panel (TROP) estimator of Athey, Imbens, Qu,
-    and Viviano (2026) <doi:10.1002/jae.70061> gives the average effect of a
-    binary treatment in panel data. The estimator adds unit weights, time
-    weights, and a low-rank term with a nuclear-norm penalty to a model with
-    two-way fixed effects. This package has the local estimator of the paper
-    and the global block estimator of the 'Python' package from the authors.
+    and Viviano (2026) <doi:10.1002/jae.70061> gives the average treatment
+    effect on the treated in panel data. The estimator adds unit weights, time
+    weights, and a low-rank term with a nuclear-norm penalty to a two-way fixed
+    effects model for a binary treatment. This package has the local estimator
+    of the paper and the global block estimator of the 'Python' package from
+    the authors.
     It selects the tuning parameters with cross-validation and calculates
     standard errors with a unit bootstrap. All calculations run in C with
     'OpenMP' threads and with the 'BLAS' and 'LAPACK' libraries that R uses.

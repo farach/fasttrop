@@ -1,40 +1,63 @@
 # fasttrop
 
-fasttrop estimates the average effect of a binary treatment in panel data with
-the Triply Robust Panel (TROP) estimator of Athey, Imbens, Qu, and Viviano
-(2026). The estimator fits two-way fixed effects plus a nuclear-norm penalized
-low-rank term on untreated cells, with unit weights based on how closely each
-unit's untreated history tracks the treated unit and time weights that decay
-with distance in periods. The numerical work runs in C with OpenMP and calls
-the BLAS and LAPACK that R itself uses.
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/farach/fasttrop/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/farach/fasttrop/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
 
-This is an independent implementation. It is not affiliated with the authors
-of the method.
+fasttrop is an R package for the Triply Robust Panel (TROP) estimator of
+Athey, Imbens, Qu, and Viviano (2026). The estimator calculates the average
+treatment effect on the treated (ATT) for a binary treatment in panel data.
+All calculations run in C. The C code can use more than one thread with
+OpenMP, and it uses the BLAS and LAPACK libraries of R. The authors of the
+method did not write this package.
 
-## Why this package
+## How the estimator works
 
-On 30 October 2026 no CRAN package implemented TROP. The authors' reference
-code is a Python package built on CVXPY, `diff-diff` implements it in Python,
-and `cfcompare` implements it in pure R on GitHub. Tuning is the expensive
-step. The leave-one-out criterion refits a weighted low-rank model for every
-untreated cell at every candidate tuning value, and the bootstrap repeats the
-fit for every draw. On the test machine, `cfcompare` needed 17 minutes for its
-default cross-validation on a 20 x 15 panel and 27 minutes on a 50 x 40 panel.
+A cell is one unit in one period. For each treated cell, the estimator
+calculates the outcome without the treatment. A model with two-way fixed
+effects and a low-rank term calculates this outcome from the untreated cells. A
+nuclear-norm penalty controls the low-rank term. Unit weights give more weight
+to units with an outcome history that is similar to the treated unit. Time
+weights give more weight to periods near the treated period.
 
-The method was chosen by a multi-model research council that reviewed the R
-packages for difference-in-differences and the 2023 to 2026 statistics and
-econometrics literature. The council approved the build under five conditions
-covering agreement with reference implementations, tuning and inference,
-simulations with a known answer, speed, and the scope of claims. The
-validation and speed sections below report the results.
+The effect for a treated cell is the difference between the outcome of the
+cell and the calculated outcome. The ATT is the mean of these effects.
 
-## Installation
+## Reasons for this package
 
-fasttrop is not on CRAN. Install it from the package folder with a C compiler
-available (Rtools on Windows):
+On 30 October 2026, CRAN had no package for the TROP estimator. These
+implementations were available:
+
+- The authors of the method wrote the Python package `trop`. It uses CVXPY.
+- The Python package `diff-diff` has the local method and the global method.
+- The R package `cfcompare` on GitHub has the local method in R code only.
+
+The selection of the tuning parameters takes the most time. The leave-one-out
+criterion calculates a new fit for each untreated cell at each candidate value.
+The bootstrap calculates a new fit for each draw. On the test computer, the
+default cross-validation of `cfcompare` took 17 minutes for a panel with 20
+units and 15 periods. For a panel with 50 units and 40 periods, it took 27
+minutes.
+
+A research council selected the TROP estimator for this package. The council
+used large language models as specialists, as a skeptic, and as judges. It
+examined the R packages for difference-in-differences and the statistics and
+econometrics papers from 2023 to 2026. The council accepted the package with
+five conditions. The conditions are about agreement with other
+implementations, tuning and inference, simulations, speed, and the limits of
+the claims.
+
+## Install the package
+
+fasttrop is not on CRAN at this time. To install the package from GitHub, do
+these steps:
+
+1. Make sure that you have a C compiler. On Windows, Rtools has the compiler.
+2. If you do not have the `remotes` package, install it.
+3. Run this R code:
 
 ```r
-install.packages("path/to/fasttrop", repos = NULL, type = "source")
+remotes::install_github("farach/fasttrop")
 ```
 
 ## Example
@@ -43,120 +66,161 @@ install.packages("path/to/fasttrop", repos = NULL, type = "source")
 library(fasttrop)
 panel <- trop_simulate(n_units = 40, n_periods = 20, n_treated = 8, n_post = 5, seed = 1)
 
-# Tuning by leave-one-out cross-validation on 200 sampled untreated cells,
-# then 200 bootstrap draws.
+# Select the tuning parameters with leave-one-out cross-validation on 200
+# sampled untreated cells. Then calculate 200 bootstrap draws.
 fit <- trop(panel, outcome = "y", treatment = "d", unit = "unit", time = "time",
             method = "local", cv_cells = 200, n_boot = 200, seed = 1)
 summary(fit)
 confint(fit)
-head(as.data.frame(fit)) # effects for each treated cell
+head(as.data.frame(fit)) # The effect for each treated cell
 ```
 
-On the test machine with 12 threads this example takes about 14 seconds. With
-fixed tuning parameters, for example `lambda = c(time = 0.1, unit = 0.5, nn = 1)`,
-it takes about 5 seconds. Cross-validation over all 760 untreated cells, as in
-the paper's Eq. 5, takes about 100 seconds.
+On the test computer with 12 threads, this example takes approximately 14
+seconds. With fixed tuning parameters, the example takes approximately 5
+seconds. For example, set `lambda = c(time = 0.1, unit = 0.5, nn = 1)`. Eq. 5
+of the paper uses all 760 untreated cells. With all cells, the
+cross-validation takes approximately 100 seconds.
 
-## What is implemented
+## What the package contains
 
-`method = "local"` is the estimator in the paper (Eq. 12 and Algorithm 2). Each
-treated cell gets its own unit and time weights and its own fit. The tuning
-parameters minimize the leave-one-out criterion of Eq. 4 and 5, found with the
-coordinate search described in the paper's footnote 2. It works for block,
-staggered, and general assignment. Setting `cv_cells` evaluates the criterion
-on a random sample of untreated cells instead of all of them.
+The package has two methods:
 
-`method = "global"` is the block estimator in the authors' Python package. It
-makes one weighted fit, with time weights centred on the treated block and unit
-weights based on distance to the average treated unit before treatment. Tuning
-uses placebo cross-validation on untreated units.
+- The local method (`method = "local"`) is the estimator of Eq. 12 and
+  Algorithm 2 of the paper. Each treated cell has its own unit weights, time
+  weights, and fit. The leave-one-out criterion of Eq. 4 and Eq. 5 selects the
+  tuning parameters. The search follows footnote 2 of the paper. You can use
+  this method for block, staggered, and general designs.
+- The global method (`method = "global"`) is the block estimator of the
+  authors' package `trop`. It calculates one weighted fit. The time weights
+  decrease with the distance from the center of the treated block. The unit
+  weights decrease with the distance from the average treated unit before the
+  treatment. Placebo cross-validation on untreated units selects the tuning
+  parameters. You can use this method only for a block design.
 
-Standard errors come from the unit bootstrap of Algorithm 3 with the tuning
-parameters held fixed. Intervals are normal by default, and `ci = "percentile"`
-gives the percentile interval used by the authors' package.
-`resample = "stratified"` draws treated and untreated units separately, and
-`resample = "controls"` keeps the treated units fixed. With
-`lambda = c(time = 0, unit = 0, nn = Inf)` the estimator reduces to two-way
-fixed effects imputation.
+In a block design, all treated units start the treatment in the same period
+and stay treated. In a staggered design, the start periods are different, but
+the treatment does not stop. In a general design, the treatment stops for one
+or more units.
 
-The paper proves its bias bound (Theorem 5.1) for block assignment only.
-fasttrop warns when the design is staggered or when treatment switches off, and
-when fewer than five units are treated, because the bootstrap's validity
-argument needs a growing number of treated units.
+With `lambda = c(time = 0, unit = 0, nn = Inf)`, both methods give the same
+result as imputation with two-way fixed effects (TWFE). The tests make sure of
+this result.
+
+The unit bootstrap of Algorithm 3 gives the standard error. The bootstrap
+keeps the tuning parameters fixed. With `resample = "stratified"`, the
+bootstrap draws treated and untreated units separately. With
+`resample = "controls"`, the treated units do not change. The default
+confidence interval is a normal interval. To get the percentile interval of
+the authors' package, set `ci = "percentile"`.
+
+Theorem 5.1 of the paper gives a bound for the bias of the estimator. The proof
+is only for a block design. For other designs, fasttrop gives a warning
+message. The paper also says that the bootstrap is correct only with many
+treated units. Thus, fasttrop gives a warning message for a bootstrap with
+fewer than five treated units.
 
 ## Validation
 
-Agreement with the references (condition C1) was checked on four fixture panels
-and five tuning settings against two independent implementations pinned to
-fixed commits. The scripts, fixtures, and detailed results are in
-`inst/validation`. Local effects match `diff-diff` to within 4e-8 for the ATT and
-1.1e-7 for single cells. Global effects match `diff-diff` to within 2.1e-8 and
-the authors' package to within 2.5e-5, which is the accuracy of the authors'
-conic solver. Given identical weights, fasttrop's objective value equals
-`diff-diff`'s to machine precision.
+The research council set the conditions C1 to C5 before the build. This
+section gives the results for C1, C2, and C3. The folder `inst/validation` has
+the scripts, the test data, and all results.
 
-The tests for condition C2 confirm that the leave-one-out criterion leaves each
-held-out cell out of its own fit and its own unit distances, that every
-bootstrap draw equals a fresh estimate on the resampled panel, and that results
-do not depend on the number of threads. The local weights are also checked
-against an independent R implementation of the paper's definition. The test
-suite has 467 expectations and passes `R CMD check --as-cran` with no notes.
+### Agreement with the reference implementations (C1)
 
-Condition C3 asked for simulations with a known answer, under block
-assignment and a factor model. `inst/validation/known_truth.R` runs three
-designs with a constant effect of 1. Untreated outcomes have unit and time
-effects, a linear-trend factor, a second factor, and noise. Each design
-compares TROP with two-way fixed effects (TWFE), and all intervals come from
-the package's own bootstrap.
+The tests compare fasttrop with two reference implementations at fixed
+commits. The comparison uses four test panels and five sets of tuning
+parameters. The table gives the largest absolute difference for each
+comparison.
 
-| Design | Method | Bias (MC SE) | RMSE | Normal CI coverage | Percentile CI coverage |
+| Comparison | Largest difference |
+|---|---|
+| Local ATT, fasttrop and `diff-diff` | 4.0e-8 |
+| Local effect for each cell, fasttrop and `diff-diff` | 1.1e-7 |
+| Global ATT, fasttrop and `diff-diff` | 2.1e-8 |
+| Global ATT, fasttrop and the authors' package | 2.5e-5 |
+| Objective value with the same weights, relative to `diff-diff` | 7e-15 |
+
+The difference from the authors' package is equal to the difference between
+the two reference implementations. The cause is the lower accuracy of the
+conic solver in that package. With the same weights, the objective values of
+fasttrop and `diff-diff` are the same to machine precision. Thus, both solvers
+find the same minimum.
+
+### Tuning and inference (C2)
+
+The tests make sure of these properties:
+
+- The leave-one-out criterion does not use a cell in its own fit or in its own
+  unit distances.
+- Each bootstrap draw is equal to a new estimate on the resampled panel.
+- The number of threads does not change the results.
+- The local weights are equal to the weights from an independent R calculation
+  of the formula in the paper.
+
+The test suite has 472 expectations. On the test computer,
+`R CMD check --as-cran --no-manual` gives the status OK.
+
+### Simulations with a known effect (C3)
+
+The script `inst/validation/known_truth.R` has three Monte Carlo simulations.
+In each simulation, the true effect is 1 for each treated cell. The untreated
+outcomes have unit effects, time effects, a factor with a linear trend, a
+second factor, and noise. The treatment starts in the same period for all
+treated units. The intervals come from the bootstrap of the package. In the
+table, SE is the standard error and RMSE is the root mean square error.
+
+| Simulation | Method | Bias (Monte Carlo SE) | RMSE | Coverage, normal interval | Coverage, percentile interval |
 |---|---|---|---|---|---|
-| A: 10 of 40 units treated at random | TWFE | -0.10 (0.05) | 0.75 | 0.890 | 0.870 |
+| A: 10 of 40 units, random selection | TWFE | -0.10 (0.05) | 0.75 | 0.890 | 0.870 |
 | | TROP local | -0.04 (0.02) | 0.30 | 0.940 | 0.890 |
 | | TROP global | -0.03 (0.02) | 0.29 | 0.925 | 0.930 |
-| A2: 30 of 80 units treated at random | TWFE | -0.08 (0.03) | 0.31 | 0.920 | 0.930 |
+| A2: 30 of 80 units, random selection | TWFE | -0.08 (0.03) | 0.31 | 0.920 | 0.930 |
 | | TROP local | -0.04 (0.02) | 0.17 | 0.970 | 0.960 |
 | | TROP global | -0.03 (0.02) | 0.16 | 0.990 | 0.980 |
-| B: 10 of 40 treated, selected on the trend loading | TWFE | 1.20 (0.05) | 1.37 | 0.500 | 0.500 |
+| B: 10 of 40 units, selection on the trend | TWFE | 1.20 (0.05) | 1.37 | 0.500 | 0.500 |
 | | TROP local | 0.64 (0.02) | 0.72 | 0.475 | 0.390 |
 | | TROP global | 0.37 (0.02) | 0.47 | 0.700 | 0.645 |
 
-With random assignment, the three estimators agree with the true effect to
-within two to three Monte Carlo standard errors, and TROP's RMSE is 44% to 62%
-lower than TWFE's. The small negative biases are sampling noise shared by all
-three methods, which see the same panels. A separate run of 2,000 TWFE
-replications gave biases of 0.022 (0.016) for design A and -0.001 (0.007) for
-design A2. Normal intervals built from the bootstrap standard error cover close
-to 95% for TROP. Percentile intervals from 100 draws cover only 89% for the
-local method in design A, which is why `ci = "normal"` is the default. With 30
-treated units instead of 10 (design A2), coverage is at or above 95% within
-Monte Carlo error for every method, and the global method's intervals are
-conservative (0.99). This fits the paper's requirement of a growing number of
-treated units.
+With random selection, the bias of each estimator is less than three Monte
+Carlo standard errors. The RMSE of TROP is 44% to 62% less than the RMSE of
+TWFE. All three methods use the same panels. Thus, the small negative biases
+are the same noise for all methods. A separate run with 2,000 replications of
+TWFE gave a bias of 0.022 for simulation A and -0.001 for simulation A2. The
+Monte Carlo standard errors were 0.016 and 0.007.
 
-When treatment is selected on the loading of the trending factor (design B),
-TWFE is badly biased. TROP removes about half of that bias with the local
-method and two thirds with the global method, but not all of it, and the
-intervals undercover because they ignore the remaining bias. This is not a
-solver artifact. Estimates at the default tolerance and at 1e-10 differ by less
-than 6e-4, and pure matrix completion with a tiny penalty shows the same bias.
-In this design the treated units have the steepest trends, so no weighting of
-untreated units or earlier periods can balance them, and the bound in
-Theorem 5.1 is not small. Users should not expect TROP to remove confounding
-that the untreated units cannot reproduce.
+For TROP, the coverage of the normal interval is near 95%. With 100 draws, the
+coverage of the percentile interval is only 89% for the local method in
+simulation A. For this reason, the normal interval is the default. In
+simulation A2 with 30 treated units, no coverage is less than 95% by more than
+two Monte Carlo standard errors. The global interval has a coverage of 0.99,
+so it is wider than necessary. The paper also says that the bootstrap is
+correct only with many treated units.
 
-## Speed, and whether it matches C
+In simulation B, the selection of treated units uses their loading on the
+trend factor. Thus, TWFE has a large bias. TROP removes approximately half of
+this bias with the local method and two thirds with the global method. But
+some bias stays, and the coverage of the intervals is less than 95%.
 
-The request behind this package was to make the code run as fast as its C
-equivalent. All numerical work, including the cross-validation loops and the
-bootstrap, runs in `src/trop_core.c`, which uses no R API. R validates inputs,
-draws the random numbers, and assembles the result. To test whether the R layer
-costs anything, `inst/bench/trop_driver.c` compiles the same core into a
-standalone program with R's compiler, flags, BLAS, and LAPACK. It runs the
-same plan as R (the same sampled cells, placebo sets, and bootstrap rows), and
-its results are bit-identical to the package's.
+This bias does not come from the solver. With the default tolerance and with a
+tolerance of 1e-10, the estimates have a difference of less than 6e-4. Pure
+matrix completion with a very small penalty has the same bias. In this
+simulation, the treated units have the largest trends. Thus, no weights on
+untreated units or on earlier periods can make a good match. TROP cannot
+remove a bias from trends that the untreated units do not have.
 
-| Workload | Threads | C program (s) | R `trop_run()` (s) | R `trop_matrix()` (s) |
+## Speed
+
+The request for this package was speed equal to C code. All calculations are
+in the file `src/trop_core.c`, which does not use the R API. The R code
+examines the inputs, makes the random draws, and makes the result object.
+
+To measure the cost of the R code, the C program `inst/bench/trop_driver.c`
+uses the same C core. The program uses the same compiler, flags, BLAS, and
+LAPACK as R. It runs the same plan as R, with the same sampled cells, placebo
+sets, and bootstrap rows. Its results are the same as the results of the
+package, bit for bit.
+
+| Workload | Threads | C program (s) | `trop_run()` (s) | `trop_matrix()` (s) |
 |---|---|---|---|---|
 | Local, fixed lambda, no bootstrap, 20 x 12 | 1 | 0.0204 | 0.0207 | 0.0221 |
 | | 4 | 0.0056 | 0.0060 | 0.0064 |
@@ -167,40 +231,59 @@ its results are bit-identical to the package's.
 | Global, placebo CV with 50 sets, 200 draws, 50 x 30 | 1 | 7.03 | 7.21 | 7.81 |
 | | 4 | 1.86 | 1.85 | 1.89 |
 
-Values are medians of three rounds, with the three paths run in random order
-within each round. `trop_run()` makes the native calls for a prepared plan, and
-`trop_matrix()` is the full call including input checks and random draws.
-Across the 18 paired runs that took at least a second, the time of
-`trop_run()` divided by that of the C program had a geometric mean of 0.996
-(95% interval 0.970 to 1.023), and the same ratio for `trop_matrix()` was 1.012
-(0.983 to 1.041). Single runs on this laptop varied by about 10%, and within
-that noise the R package runs at the speed of the C program. The fixed cost of
-the R layer shows only on the smallest problem, at about 0.3 ms per call. The C
-program and R return identical tuning parameters, estimates, and bootstrap
-draws, and so do runs with 1 and 4 threads.
+The values are medians of three rounds. In each round, the three paths ran in
+a random sequence. The function `trop_run()` starts the C calculations for a
+prepared plan. The function `trop_matrix()` is the full function call, with
+the input checks and the random draws.
 
-The first version of this benchmark found the R path about 40% slower than the
-C program. The cause was not in fasttrop. Identical LAPACK calls ran a median
-1.34 times slower inside a long-running R session than in a fresh process
-(R slower in 28 of 30 randomized pairs). The slowdown grew the longer the R
-process stayed busy, and it disappeared when the process opted out of Windows
-power throttling (EcoQoS), which Windows applies to long-running background
-processes. The short-lived C program finished before it was throttled.
-fasttrop now asks Windows not to throttle the threads that run its kernels
-while they run, and hands the decision back to the system afterwards.
-`trop_control(throttle = TRUE)` keeps the system policy, and the option does
-nothing on other platforms.
+For the paired runs of one second or more, the ratio of R time to C time had
+these values:
 
-Two limits apply to the parity claim. Parity is measured against the same C
-core, so a different algorithm or an optimized BLAS such as OpenBLAS would be
-faster, and fasttrop gains the same speedup when R is linked to that BLAS. The
-benchmarks also ran on a Snapdragon X Elite laptop with x64 R 4.6.1 under
-Windows on ARM emulation. Both the package and the C program were emulated, so
-the comparison is fair, but native builds would be faster in absolute terms.
+- For `trop_run()`, the geometric mean was 0.996, with a 95% interval of 0.970
+  to 1.023.
+- For `trop_matrix()`, the geometric mean was 1.012, with a 95% interval of
+  0.983 to 1.041.
 
-The other implementations were timed on the same two panels with the same
-fixed tuning parameters, (time, unit, nn) = (0.3, 0.8, 0.5), and each package's
-default solver settings (`inst/bench/reference_timings.R` and `.py`).
+On this laptop, single runs had a variation of approximately 10%. In the
+limits of this variation, the R package has the same speed as the C program.
+The fixed cost of the R code is approximately 0.3 ms for each call. This cost
+is important only for very small panels. The C program and R gave the same
+tuning parameters, estimates, and bootstrap draws. Runs with 1 thread and with
+4 threads also gave the same results.
+
+### Windows power throttling
+
+The first version of this benchmark showed that R was approximately 40% slower
+than the C program. The cause was not in fasttrop. The same LAPACK calls were
+1.34 times slower in a long R session than in a new process. R was slower in 28
+of 30 pairs with a random sequence.
+
+Windows uses power throttling (EcoQoS) on processes that run in the background
+for a long time. The slowdown increased with the time that the R process was
+busy. The slowdown stopped when the process was not under power throttling.
+The short C program stopped before Windows started power throttling.
+
+fasttrop now tells Windows not to use power throttling on its threads while
+the C code runs. When the C code stops, Windows controls the threads again. To
+keep the usual Windows policy, use `trop_control(throttle = TRUE)`. On other
+operating systems, this option has no effect.
+
+Two limits apply to this comparison:
+
+- The comparison uses the same C core. A different algorithm or a faster BLAS,
+  for example OpenBLAS, can be faster. When R uses a faster BLAS, fasttrop also
+  uses it.
+- The benchmarks ran on a Snapdragon X Elite laptop with x64 R 4.6.1 under
+  emulation on Windows on ARM. The package and the C program both ran under
+  emulation. Thus, the conditions of the comparison were the same. A native
+  build can be faster.
+
+### Comparison with the other implementations
+
+The other implementations used the same two panels and the same fixed tuning
+parameters, (time, unit, nn) = (0.3, 0.8, 0.5). Each package used its default
+solver options. The scripts are `inst/bench/reference_timings.R` and
+`inst/bench/reference_timings.py`.
 
 | Task | Panel | fasttrop, 1 thread | fasttrop, 4 threads | Authors' `trop` | `diff-diff` | `cfcompare` |
 |---|---|---|---|---|---|---|
@@ -208,28 +291,36 @@ default solver settings (`inst/bench/reference_timings.R` and `.py`).
 | Local ATT | 40 x 20 | 0.33 s | 0.088 s | | 9.33 s | 49.7 s |
 | Global ATT | 20 x 15 | 0.0032 s | 0.0040 s | 0.100 s | 0.551 s | |
 | Global ATT | 40 x 20 | 0.010 s | 0.0084 s | 0.252 s | 0.951 s | |
-| One leave-one-out evaluation, 284 cells | 20 x 15 | 0.85 s | 0.20 s | | 56.6 s | |
+| One evaluation of the leave-one-out criterion, 284 cells | 20 x 15 | 0.85 s | 0.20 s | | 56.6 s | |
 
-On one thread fasttrop was 25 to 31 times faster than the authors' package for
-the global estimator, 29 to 174 times faster than `diff-diff`, and 136 to 152
-times faster than `cfcompare`. Its estimates agreed with the two Python packages
-to within 1e-5 at their default tolerances. `cfcompare`'s estimates differed by
-up to 0.006, so it computes nearly but not exactly the same quantity.
-`diff-diff` ran as pure Python because its optional Rust backend was not
-available here, so these numbers understate that package's speed. For context
-only, since the procedures differ: `cfcompare`'s default cross-validation (120
-sampled cells and its own grid) took 1,023 seconds on a 20 x 15 panel, while
-fasttrop's default cross-validation over all 284 untreated cells of the same
-panel took 31 seconds on one thread and 3.8 seconds on 12 threads.
+With one thread, fasttrop was 25 to 31 times faster than the authors' package
+for the global method. It was 29 to 174 times faster than `diff-diff` and 136
+to 152 times faster than `cfcompare`. The ATTs of fasttrop and the two Python
+packages had a difference of less than 1e-5 at their default tolerances. The
+ATTs of `cfcompare` had a difference of up to 0.006. Thus, `cfcompare` does
+not calculate exactly the same value.
 
-## Limitations
+`diff-diff` ran in Python only, because its optional Rust code was not
+available. With the Rust code, its times can be shorter.
 
-- Covariates are not supported.
-- Missing outcomes are allowed and excluded from the fits, but the tuning and
-  bootstrap code has only been tested with a few missing cells.
-- The equations were checked against arXiv version 3 of the paper. The journal
-  version of record has not been compared line by line.
-- The package has been built and tested on Windows only.
+The cross-validation procedures of the packages are different, but these
+times give context. For a different panel with 20 units and 15 periods, the
+default cross-validation of `cfcompare` took 1,023 seconds. It used 120
+sampled cells and its own grid. On the same panel, the default
+cross-validation of fasttrop used all 284 untreated cells. It took 31 seconds
+with one thread and 3.8 seconds with 12 threads.
+
+## Limits
+
+These limits apply to version 0.1.0:
+
+- The package cannot use covariates.
+- Outcomes can be `NA`, and the fits do not use these cells. The tests for the
+  tuning and for the bootstrap use only a small number of `NA` cells.
+- The equations come from arXiv version 3 of the paper. A line-by-line
+  comparison with the journal version is not complete.
+- GitHub Actions runs `R CMD check` on Linux, macOS, and Windows. The
+  validation scripts and the benchmark scripts ran only on Windows.
 
 ## References
 
@@ -237,7 +328,14 @@ Athey, S., Imbens, G. W., Qu, Z., and Viviano, D. (2026). Triply Robust Panel
 Estimators. *Journal of Applied Econometrics*. doi:10.1002/jae.70061.
 arXiv:2508.21536.
 
-Reference implementations used for validation: `trop` by the paper's authors
-(github.com/zhaonanq/TROP-Estimator, MIT), `diff-diff`
-(github.com/igerber/diff-diff, MIT), and `cfcompare` by Takuma Iwasaki
-(github.com/takuma1102/cfcompare, MIT).
+The validation used these reference implementations:
+
+- Python package `trop` from the authors of the paper,
+  github.com/zhaonanq/TROP-Estimator (MIT license)
+- Python package `diff-diff`, github.com/igerber/diff-diff (MIT license)
+- R package `cfcompare` by Takuma Iwasaki, github.com/takuma1102/cfcompare
+  (MIT license)
+
+## License
+
+The package has the MIT license. Refer to the file `LICENSE.md`.

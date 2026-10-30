@@ -7,9 +7,9 @@ test_that("matrix inputs are validated with clear errors", {
   W2[1, 1] <- 2L
   expect_error(trop_matrix(p$Y, W2), "only 0 and 1")
   expect_error(trop_matrix(p$Y[1:2, ], p$W[1:2, ]), "at least 3 units")
-  expect_error(trop_matrix(p$Y, p$W * 0L, lambda = l, se = "none"), "No treated")
+  expect_error(trop_matrix(p$Y, p$W * 0L, lambda = l, se = "none"), "no treated cells")
   expect_error(trop_matrix(p$Y, p$W, lambda = c(1, 2)), "lambda")
-  expect_error(trop_matrix(p$Y, p$W, lambda = c(time = -1, unit = 0, nn = 1)), "non-negative")
+  expect_error(trop_matrix(p$Y, p$W, lambda = c(time = -1, unit = 0, nn = 1)), "0 or more")
   expect_error(trop_matrix(p$Y, p$W, lambda = c(time = Inf, unit = 0, nn = 1)), "finite")
   expect_error(trop_matrix(p$Y, p$W, lambda = l, conf_level = 1.5), "conf_level")
   expect_error(trop_matrix(p$Y, p$W, lambda = l, ci = "bca"), "should be one of")
@@ -33,20 +33,20 @@ test_that("controls and grids are validated", {
 
 test_that("data frame inputs are validated", {
   d <- small_panel()$data
-  expect_error(trop(d, "nope", "d", "unit", "time"), "not found")
+  expect_error(trop(d, "nope", "d", "unit", "time"), "is not in")
   d2 <- d
   d2$y <- as.character(d2$y)
   expect_error(trop(d2, "y", "d", "unit", "time"), "numeric")
-  expect_error(trop(rbind(d, d[1, ]), "y", "d", "unit", "time"), "duplicated")
+  expect_error(trop(rbind(d, d[1, ]), "y", "d", "unit", "time"), "two or more rows")
   d4 <- d
   d4$d[1] <- NA
-  expect_error(trop(d4, "y", "d", "unit", "time"), "0/1")
+  expect_error(trop(d4, "y", "d", "unit", "time"), "only 0 and 1")
   expect_error(trop(as.list(d), "y", "d", "unit", "time"), "data frame")
 })
 
 test_that("unbalanced panels are completed with missing outcomes", {
   d <- small_panel(seed = 2)$data
-  d <- d[-c(3, 40), ] # drop two untreated rows
+  d <- d[-c(3, 40), ] # remove two untreated rows
   fit <- trop(d, "y", "d", "unit", "time", lambda = c(time = 0, unit = 0, nn = Inf),
               se = "none", control = small_control())
   expect_true(is.finite(fit$estimate))
@@ -58,7 +58,7 @@ test_that("design checks warn or stop as documented", {
   st <- small_panel(seed = 8, design = "staggered", n_post = 4)
   expect_equal(fasttrop:::trop_design(st$W, st$W * 0L + 1L)$type, "staggered")
   expect_warning(trop_matrix(st$Y, st$W, lambda = l, se = "none", control = small_control()),
-                 "block assignment only")
+                 "proof only for a block design")
   expect_error(suppressWarnings(trop_matrix(st$Y, st$W, method = "global", lambda = l,
                                             se = "none")),
                "block design")
@@ -68,14 +68,14 @@ test_that("design checks warn or stop as documented", {
   gen$W[i, ncol(gen$W)] <- 0L
   warns <- collect_warnings(trop_matrix(gen$Y, gen$W, lambda = l, se = "none",
                                         control = small_control()))
-  expect_true(any(grepl("switches off", warns)))
-  expect_true(any(grepl("block assignment only", warns)))
+  expect_true(any(grepl("stops for some units", warns)))
+  expect_true(any(grepl("proof only for a block design", warns)))
 
   few <- small_panel(seed = 10, n_treated = 2)
   expect_warning(trop_matrix(few$Y, few$W, lambda = l, n_boot = 5, control = small_control()),
-                 "growing number of treated units")
+                 "correct only with many treated units")
   one_control <- small_panel(seed = 12, n_units = 6, n_treated = 5)
   expect_error(trop_matrix(one_control$Y, one_control$W, method = "global", lambda = l,
                            se = "none"),
-               "at least 2 never-treated")
+               "at least 2 units that are never treated")
 })

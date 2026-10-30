@@ -1,6 +1,6 @@
-# Generates the oracle fixture panels used by tests/testthat/test-oracle.R.
-# Run from the package root: Rscript data-raw/make_fixtures.R
-# Then run data-raw/oracle_fixtures.py to compute the reference answers.
+# Make the fixture panels for tests/testthat/test-oracle.R.
+# Run this script in the package folder: Rscript data-raw/make_fixtures.R
+# Then run data-raw/oracle_fixtures.py to calculate the reference results.
 devtools::load_all(".", quiet = TRUE)
 
 out <- file.path("tests", "testthat", "fixtures")

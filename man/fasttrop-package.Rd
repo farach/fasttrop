@@ -6,15 +6,15 @@
 \alias{fasttrop-package}
 \title{fasttrop: Fast Triply Robust Panel Estimators}
 \description{
-Implements the Triply Robust Panel (TROP) estimator of Athey, Imbens, Qu,
-and Viviano (2026), which combines unit weights, time weights, and a
-nuclear-norm regularized factor model on top of two-way fixed effects.
-The numerical work (weighted low-rank fits, cross-validation, and the
-bootstrap) runs in C with optional 'OpenMP' threads.
+The package calculates the Triply Robust Panel (TROP) estimator of Athey,
+Imbens, Qu, and Viviano (2026). The estimator adds unit weights, time
+weights, and a low-rank term with a nuclear-norm penalty to a model with
+two-way fixed effects. All calculations run in C. The C code can use more
+than one thread with 'OpenMP'.
 }
 \details{
-Main entry points are \code{\link[=trop]{trop()}} for long-format data frames and
-\code{\link[=trop_matrix]{trop_matrix()}} for outcome and treatment matrices.
+Use \code{\link[=trop]{trop()}} for a data frame in long format. Use \code{\link[=trop_matrix]{trop_matrix()}} for a
+matrix of outcomes and a matrix of treatment indicators.
 }
 \references{
 Athey, S., Imbens, G. W., Qu, Z., and Viviano, D. (2026).

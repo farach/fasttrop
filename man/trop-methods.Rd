@@ -28,23 +28,25 @@
 \arguments{
 \item{x, object}{A \code{trop} object.}
 
-\item{digits}{Number of significant digits to print.}
+\item{digits}{The number of significant digits to show.}
 
-\item{...}{Unused.}
+\item{...}{Not used.}
 
-\item{parm}{Ignored; the model has one parameter (the ATT).}
+\item{parm}{Not used. The model has only one parameter, the ATT.}
 
-\item{level}{Confidence level. Only the level used at fit time is
-available, because the interval is stored with the fit.}
+\item{level}{The confidence level. Only the level of the fit is available,
+because the fit contains the interval.}
 
-\item{row.names, optional}{Ignored.}
+\item{row.names, optional}{Not used.}
 }
 \value{
-\code{coef()} returns the named ATT; \code{confint()} a 1 x 2 matrix;
-\code{vcov()} a 1 x 1 matrix; \code{as.data.frame()} one row per treated cell with
-its estimated effect; \code{print()} and \code{summary()} return \code{x} or a summary
-object invisibly or for printing.
+\code{coef()} returns the ATT with the name \code{ATT}. \code{confint()} returns a
+matrix with 1 row and 2 columns. \code{vcov()} returns a matrix with 1 row and 1
+column. \code{as.data.frame()} returns a data frame with one row for each
+treated cell and its effect. \code{print()} returns \code{x} invisibly, and
+\code{summary()} returns a summary object.
 }
 \description{
-Print, summarize, and extract results from a fitted \code{\link[=trop]{trop()}} model.
+These methods show the results of a \code{\link[=trop]{trop()}} fit and get parts of the
+results.
 }

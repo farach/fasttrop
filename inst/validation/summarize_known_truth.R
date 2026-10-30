@@ -1,5 +1,6 @@
-# Rebuild known-truth summaries from the saved draws, so every design reports
-# the same statistics. Run from the package root after known_truth.R.
+# Make the summaries of the simulations from the saved draws. Thus, all
+# simulations give the same statistics. Run this script in the package folder
+# after known_truth.R.
 tau <- 1
 z <- stats::qnorm(0.975)
 dir <- file.path("inst", "validation")

@@ -1,17 +1,20 @@
-# Parity benchmark: fasttrop's R entry points versus a standalone C driver.
+# Benchmark for the cost of the R code: the R functions of fasttrop and a C
+# program with the same C core.
 #
-# Both paths execute the same compiled core (src/trop_core.c), built with the
-# same compiler, flags, BLAS/LAPACK, and thread count, on the same inputs. The
-# plan (panel, sampled CV cells, placebo sets, bootstrap rows) is drawn once in
-# R and serialized for the driver, so timing differences come only from the R
-# layer. Paths are interleaved in rounds so drift in machine load affects all
-# of them alike.
+# The two paths run the same compiled C core (src/trop_core.c). They use the
+# same compiler, flags, BLAS, LAPACK, number of threads, and inputs. The script
+# makes the plan one time in R and writes it to a file for the C program. The
+# plan contains the panel, the sampled cells, the placebo sets, and the
+# bootstrap rows. Thus, only the R code can cause a difference in time. Each
+# round runs all paths, so a change in the load of the computer has the same
+# effect on all paths.
 #
-# Usage (from the package root, with fasttrop installed):
+# Usage, in the package folder, with fasttrop installed:
 #   Rscript inst/bench/run_benchmark.R [rounds] [threads] [inner]
-#     rounds  number of interleaved rounds (default 3)
-#     threads comma-separated thread counts (default "1,4")
-#     inner   repetitions per path and round; the round keeps the minimum (default 2)
+#     rounds  number of rounds (default 3)
+#     threads numbers of threads, with commas between them (default "1,4")
+#     inner   runs for each path in each round. The round keeps the shortest
+#             time (default 2).
 args <- commandArgs(trailingOnly = TRUE)
 rounds <- if (length(args) >= 1L) as.integer(args[1L]) else 3L
 thread_set <- if (length(args) >= 2L) as.integer(strsplit(args[2L], ",")[[1L]]) else c(1L, 4L)
@@ -25,7 +28,7 @@ log_msg <- function(...) {
 bench_dir <- file.path(tempdir(), "fasttrop-bench")
 dir.create(bench_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Build the driver with R's own toolchain configuration ------------------
+# Compile the C program with the compiler configuration of R -------------
 rcmd <- function(x) {
   r <- file.path(R.home("bin"), "R")
   trimws(system2(r, c("CMD", "config", x), stdout = TRUE))
@@ -40,17 +43,17 @@ omp <- sub("^SHLIB_OPENMP_CFLAGS\\s*=\\s*", "",
 cc <- rcmd("CC")
 cflags <- rcmd("CFLAGS")
 libs <- paste(rcmd("LAPACK_LIBS"), rcmd("BLAS_LIBS"), rcmd("FLIBS"))
-# R CMD INSTALL adds -DNDEBUG; do the same so both builds are identical.
+# R CMD INSTALL adds -DNDEBUG. Thus, the C program also uses -DNDEBUG.
 cmd <- paste(cc, "-DNDEBUG", cflags, omp, sprintf('-I"%s"', R.home("include")),
              sprintf('-I"%s"', src_dir), sprintf('"%s"', driver_c), sprintf('"%s"', os_c),
              "-o", sprintf('"%s"', exe), libs, omp, "-lm")
-log_msg("Compiling driver: ", cmd)
-if (system(cmd) != 0L) stop("Driver compilation failed.")
+log_msg("Compile the C program: ", cmd)
+if (system(cmd) != 0L) stop("The compilation of the C program failed.")
 if (.Platform$OS.type == "windows") {
   Sys.setenv(PATH = paste(R.home("bin"), Sys.getenv("PATH"), sep = .Platform$path.sep))
 }
 
-# Serialize a plan for the driver -----------------------------------------
+# Write a plan to a file for the C program -------------------------------
 write_plan <- function(plan, path) {
   con <- file(path, "wb")
   on.exit(close(con))
@@ -83,7 +86,7 @@ write_plan <- function(plan, path) {
 
 run_driver <- function(plan_path, out_path, reps, B) {
   status <- system2(exe, c(shQuote(plan_path), reps, shQuote(out_path)), stdout = FALSE)
-  if (!identical(as.integer(status), 0L)) stop("Driver failed with status ", status, ".")
+  if (!identical(as.integer(status), 0L)) stop("The C program stopped with status ", status, ".")
   con <- file(out_path, "rb")
   on.exit(close(con))
   head <- readBin(con, "double", 8L)
@@ -92,8 +95,9 @@ run_driver <- function(plan_path, out_path, reps, B) {
        estimate = head[7], boot = head[8], draws = draws)
 }
 
-# proc.time() has a 10 ms resolution on Windows; use a high-resolution clock.
-if (!requireNamespace("bench", quietly = TRUE)) stop("The benchmark needs the 'bench' package.")
+# On Windows, proc.time() has a resolution of 10 ms. Thus, use a clock with a
+# high resolution.
+if (!requireNamespace("bench", quietly = TRUE)) stop("Install the 'bench' package before you run the benchmark.")
 min_time <- function(f, n) {
   min(vapply(seq_len(n), function(i) {
     t0 <- bench::hires_time()
@@ -102,9 +106,10 @@ min_time <- function(f, n) {
   }, double(1)))
 }
 
-# Benchmark configurations ------------------------------------------------
+# Workloads of the benchmark ---------------------------------------------
 grid_small <- trop_grid(time = c(0, 0.5, 1), unit = c(0, 0.5, 1), nn = c(0.1, 1, Inf))
-# `inner` is raised for the millisecond-scale configuration so the minimum is stable.
+# The workload of a few milliseconds has a larger `inner`. Thus, the shortest
+# time is stable.
 configs <- list(
   list(id = "A", name = "local, fixed lambda, no SE, 20x12", method = "local", N = 20, TT = 12,
        ntr = 4, post = 3, lambda = c(time = 0.3, unit = 0.8, nn = 0.5), cv_cells = NULL,
@@ -122,7 +127,7 @@ configs <- list(
 
 out_csv <- file.path(getwd(), "inst", "bench", "results.csv")
 if (file.exists(out_csv)) file.remove(out_csv)
-set.seed(20261030) # only for the order of paths within rounds
+set.seed(20261030) # only for the sequence of the paths in each round
 reference <- list()
 results <- list()
 paired <- list()
@@ -142,7 +147,7 @@ for (cf in configs) {
     write_plan(plan, plan_path)
     B <- if (is.null(plan$rows)) 0L else nrow(plan$rows)
 
-    # Correctness first: the driver and R must agree exactly.
+    # First, make sure that the C program and R give exactly the same results.
     drv <- run_driver(plan_path, out_path, 1L, B)
     fit <- suppressWarnings(ns$trop_run(plan))
     same_lambda <- isTRUE(all.equal(unname(fit$lambda), drv$lambda, tolerance = 0))
@@ -161,7 +166,7 @@ for (cf in configs) {
     n_in <- if (is.null(cf$inner)) inner else cf$inner
     t_drv <- t_run <- t_full <- double(rounds)
     for (r in seq_len(rounds)) {
-      # Random order within each round, so no path always runs first.
+      # Use a random sequence in each round. Thus, no path always runs first.
       for (path in sample(c("c", "run", "full"))) {
         if (path == "c") {
           t_drv[r] <- run_driver(plan_path, out_path, n_in, B)$total
@@ -200,8 +205,9 @@ log_msg("Saved ", out_csv)
 print(do.call(rbind, results)[, c("config", "threads", "c_driver_s", "r_trop_run_s",
                                   "r_trop_matrix_s", "overhead_run_pct", "overhead_full_pct")])
 
-# Pooled paired comparison for runs of at least one second: geometric mean of
-# the per-round ratio R / C with a t-based 95% interval on the log scale.
+# Pooled comparison of the pairs of runs of one second or more. The script
+# calculates the ratio R / C for each round. Then it calculates the geometric
+# mean of these ratios, with a 95% t interval on the log scale.
 pr <- do.call(rbind, paired)
 utils::write.csv(pr, file.path(getwd(), "inst", "bench", "results-rounds.csv"), row.names = FALSE)
 long <- pr[pr$c_s >= 1, ]
