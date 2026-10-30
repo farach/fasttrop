@@ -9,7 +9,8 @@
 
 The local `R CMD check --as-cran --no-manual` gave the status OK with 0
 errors, 0 warnings, and 0 notes. The local check did not use the remote CRAN
-incoming checks.
+incoming checks. On GitHub Actions, `R CMD check --as-cran --no-manual` gave
+the status OK on all six platforms.
 
 The local TeX installation does not have `makeindex` or the Courier fonts.
 Thus, the local check did not make the PDF manual. With the Latin Modern
