@@ -21,12 +21,20 @@ Athey, S., Imbens, G. W., Qu, Z., and Viviano, D. (2026).
 Triply Robust Panel Estimators. \emph{Journal of Applied Econometrics}.
 \doi{10.1002/jae.70061}. Preprint: arXiv:2508.21536.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/farach/fasttrop}
+  \item Report bugs at \url{https://github.com/farach/fasttrop/issues}
+}
+
+}
 \author{
-\strong{Maintainer}: Alex Farach \email{farach@users.noreply.github.com}
+\strong{Maintainer}: Alex Farach \email{alexfarach@microsoft.com} [copyright holder]
 
 Authors:
 \itemize{
-  \item Alex Farach \email{farach@users.noreply.github.com}
+  \item Alex Farach \email{alexfarach@microsoft.com} [copyright holder]
 }
 
 }

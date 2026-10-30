@@ -59,8 +59,12 @@ trop_control <- function(max_iter = 100L, max_inner = 10L, tol = 1e-6,
 
 #' Default number of threads
 #'
-#' @return The option `fasttrop.threads` if set, otherwise the number of
-#'   physical cores (at least 1).
+#' `trop_threads()` gives the default number of threads for [trop_control()].
+#'
+#' @return The value of the option `fasttrop.threads`, if it is set. If the
+#'   option is not set, the number of physical cores, with a minimum of 1. When
+#'   the environment variable `_R_CHECK_LIMIT_CORES_` has a value other than
+#'   `"false"`, the maximum is 2. `R CMD check --as-cran` sets this variable.
 #' @examples
 #' trop_threads()
 #' @export
@@ -69,6 +73,9 @@ trop_threads <- function() {
   if (!is.null(opt)) return(as.integer(opt))
   n <- suppressWarnings(parallel::detectCores(logical = FALSE))
   if (is.na(n) || n < 1L) n <- 1L
+  # CRAN policy: package checks must not use more than 2 cores.
+  limit <- Sys.getenv("_R_CHECK_LIMIT_CORES_", "")
+  if (nzchar(limit) && limit != "false") n <- min(n, 2L)
   as.integer(n)
 }
 

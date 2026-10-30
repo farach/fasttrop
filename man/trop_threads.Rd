@@ -7,11 +7,13 @@
 trop_threads()
 }
 \value{
-The option \code{fasttrop.threads} if set, otherwise the number of
-physical cores (at least 1).
+The value of the option \code{fasttrop.threads}, if it is set. If the
+option is not set, the number of physical cores, with a minimum of 1. When
+the environment variable \verb{_R_CHECK_LIMIT_CORES_} has a value other than
+\code{"false"}, the maximum is 2. \verb{R CMD check --as-cran} sets this variable.
 }
 \description{
-Default number of threads
+\code{trop_threads()} gives the default number of threads for \code{\link[=trop_control]{trop_control()}}.
 }
 \examples{
 trop_threads()

@@ -1,19 +1,22 @@
 Package: fasttrop
-Title: Fast Triply Robust Panel Estimators for Panel Causal Inference
+Title: Fast Triply Robust Panel Estimators
 Version: 0.1.0
 Authors@R:
-    person("Alex", "Farach", email = "farach@users.noreply.github.com",
-           role = c("aut", "cre"))
-Description: Implements the Triply Robust Panel (TROP) estimator of Athey,
-    Imbens, Qu, and Viviano (2026) <doi:10.1002/jae.70061> for average effects
-    of binary treatments in panel data. The estimator combines unit weights,
-    time weights, and a nuclear-norm regularized factor model on top of two-way
-    fixed effects. It provides the paper's per-cell estimator and the block
-    estimator of the authors' reference software, cross-validated tuning, and a
-    unit bootstrap. The computational core is written in C with 'OpenMP'
-    parallelism. This is an independent implementation and is not affiliated
-    with the authors of the method.
+    person("Alex", "Farach", email = "alexfarach@microsoft.com",
+           role = c("aut", "cre", "cph"))
+Description: The Triply Robust Panel (TROP) estimator of Athey, Imbens, Qu,
+    and Viviano (2026) <doi:10.1002/jae.70061> gives the average effect of a
+    binary treatment in panel data. The estimator adds unit weights, time
+    weights, and a low-rank term with a nuclear-norm penalty to a model with
+    two-way fixed effects. This package has the local estimator of the paper
+    and the global block estimator of the 'Python' package from the authors.
+    It selects the tuning parameters with cross-validation and calculates
+    standard errors with a unit bootstrap. All calculations run in C with
+    'OpenMP' threads and with the 'BLAS' and 'LAPACK' libraries that R uses.
+    The authors of the method did not write this package.
 License: MIT + file LICENSE
+URL: https://github.com/farach/fasttrop
+BugReports: https://github.com/farach/fasttrop/issues
 Encoding: UTF-8
 Depends:
     R (>= 4.1.0)
