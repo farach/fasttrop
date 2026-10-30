@@ -1,5 +1,4 @@
-# Condition C4 of the council: times of fasttrop and the other implementations
-# for the same calculations.
+# Times of fasttrop and the other implementations for the same calculations.
 #
 # The script uses the same panels and the same fixed tuning parameters for
 # each package. Each package uses its default solver options. The package

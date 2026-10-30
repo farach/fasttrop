@@ -142,10 +142,11 @@ with fewer than 5 treated units.
 \section{Limits of the triple robustness result}{
 
 Theorem 5.1 of the paper gives a bound for the bias. The bound is the product
-of three terms: the unit imbalance, the time imbalance, and the error of the
-regression adjustment. The proof is only for a block design. For a staggered
-or general design, the function calculates the estimator, but the bound has
-no proof. Thus, the function gives a warning message for these designs.
+of three terms: the unit imbalance, the time imbalance, and the bias of the
+regression adjustment. The proof uses fixed weights, and it is only for a
+block design. For a staggered or general design, the function calculates
+the estimator, but the bound has no proof. Thus, the function gives a
+warning message for these designs.
 }
 
 \examples{

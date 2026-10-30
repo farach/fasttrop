@@ -1,9 +1,8 @@
 ## Test environments
 
-- Local: Windows 11 Enterprise on an ARM64 processor, build 26300, with x64
-  R 4.6.1 under emulation
 - GitHub Actions: Ubuntu with R-devel, R-release, R-oldrel-1, and R 4.1,
   macOS with R-release, and Windows with R-release
+- Local: Windows with R 4.6.1
 
 ## R CMD check results
 

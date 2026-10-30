@@ -52,38 +52,37 @@ and for the two numbers of threads.
 There were 18 pairs of runs of one second or more. For these pairs, the
 geometric mean of the ratio was 0.996 for `trop_run()`, with a 95% interval of
 0.970 to 1.023. For `trop_matrix()`, it was 1.012, with a 95% interval of
-0.983 to 1.041. For the smallest workload, the R code added approximately
-0.3 ms for each call. The package README has the full table.
+0.983 to 1.041. For the smallest workload, `trop_run()` added approximately
+0.3 ms for each call. The full `trop_matrix()` call added 0.8 ms to 1.7 ms. In
+the limits of this measurement, the R package has the same speed as the C
+program.
+
+| Workload | Threads | C program (s) | `trop_run()` (s) | `trop_matrix()` (s) |
+|---|---|---|---|---|
+| Local, fixed lambda, no bootstrap, 20 x 12 | 1 | 0.0204 | 0.0207 | 0.0221 |
+| | 4 | 0.0056 | 0.0060 | 0.0064 |
+| Local, fixed lambda, 100 bootstrap draws, 30 x 20 | 1 | 14.38 | 14.10 | 15.70 |
+| | 4 | 3.99 | 3.88 | 3.75 |
+| Local, CV on 60 cells, 50 draws, 30 x 20 | 1 | 4.80 | 4.34 | 4.69 |
+| | 4 | 1.12 | 1.17 | 1.15 |
+| Global, placebo CV with 50 sets, 200 draws, 50 x 30 | 1 | 7.03 | 7.21 | 7.81 |
+| | 4 | 1.86 | 1.85 | 1.89 |
+
+The values are medians of three rounds. The function `trop_run()` starts the
+C calculations for a prepared plan. The function `trop_matrix()` is the full
+function call, with the input checks and the random draws.
 
 ### Windows power throttling
 
-In an earlier run of this benchmark, the R path was approximately 40% slower
-than the C program. For the bootstrap on one thread, R took 29.5 s and C took
-21.1 s. At that time, the package did not have the change for power
-throttling. A test with a small DLL found the cause. The DLL calls `dgesdd`
-and `dgemm` with the same inputs in each process.
+Windows can use power throttling (EcoQoS) on a process that runs in the
+background for a long time. Power throttling makes the process slower. An R
+session with a long calculation can be such a process. A short C program
+usually stops before Windows starts power throttling. Thus, the threads of
+fasttrop tell Windows not to use power throttling while the C code runs.
 
-The same machine code had full speed in a new process, in a small C host
-program, and in x64 Python. In a long R session, the median time was 1.34
-times longer. R was slower in 28 of 30 pairs with a random sequence, and the
-Wilcoxon test gave p = 2e-7.
-
-The tests found that these items did not cause the slowdown:
-
-- The x87 control word and the SSE control word
-- The heap type of R
-- The load addresses of the DLLs
-- More threads that do not run
-
-The cause was Windows power throttling (EcoQoS). When the process or the
-thread was not under power throttling, the slowdown stopped. In one long R
-session, the same call took 0.70 s without power throttling. With power
-throttling, the median time was 0.81 s to 1.04 s.
-
-For this reason, the threads of fasttrop tell Windows not to use power
-throttling while the C code runs. When the C code stops, Windows controls the
-threads again. With `trop_control(throttle = TRUE)`, Windows uses its usual
-policy. This option does not change the results.
+When the C code stops, Windows controls the threads again. With
+`trop_control(throttle = TRUE)`, Windows uses its usual policy. This option
+does not change the results. On other operating systems, it has no effect.
 
 ## Comparison with the other implementations
 
@@ -101,7 +100,18 @@ To run the comparison, do these steps in the package folder:
 4. Run `Rscript inst/bench/reference_timings.R combine`.
 
 The file `reference-timings.csv` has the results. A column gives each time as
-a multiple of the time of fasttrop with one thread.
+a multiple of the time of fasttrop with one thread. The panels have 20 units
+and 15 periods, and 40 units and 20 periods. The tuning parameters are
+(time, unit, nn) = (0.3, 0.8, 0.5). An empty cell shows that the package does
+not have the method.
+
+| Task | Panel | fasttrop, 1 thread | fasttrop, 4 threads | Authors' `trop` | `diff-diff` | `cfcompare` |
+|---|---|---|---|---|---|---|
+| Local ATT | 20 x 15 | 0.044 s | 0.016 s | | 3.42 s | 5.93 s |
+| Local ATT | 40 x 20 | 0.33 s | 0.088 s | | 9.33 s | 49.7 s |
+| Global ATT | 20 x 15 | 0.0032 s | 0.0040 s | 0.100 s | 0.551 s | |
+| Global ATT | 40 x 20 | 0.010 s | 0.0084 s | 0.252 s | 0.951 s | |
+| One evaluation of the leave-one-out criterion, 284 cells | 20 x 15 | 0.85 s | 0.20 s | | 56.6 s | |
 
 With one thread, fasttrop was 25 to 31 times faster than the authors' package
 for the global method. It was 29 to 174 times faster than `diff-diff` in
@@ -110,11 +120,14 @@ the Python packages had a difference of less than 1e-5. The ATTs of
 `cfcompare` had a difference of up to 0.006. Thus, `cfcompare` does not
 calculate exactly the same value.
 
-## Test computer
+`diff-diff` ran in Python only, because its optional Rust code was not
+available. With the Rust code, its times can be shorter.
 
-The test computer was a laptop with a Snapdragon X Elite X1E80100 processor
-with 12 cores and Windows 11. R was x64 R 4.6.1 under emulation on Windows on
-ARM. The compiler was GCC 14.3.0 from Rtools 4.5, with the reference BLAS and
-LAPACK of R. Python was x64 Python 3 with NumPy 2.5, CVXPY 1.9 with CLARABEL,
-and `diff-diff` in Python only. The laptop also did other work during the
-tests. Thus, all times contain some noise.
+## Notes on the times
+
+The times depend on the computer, the compiler, the BLAS library, and the
+number of threads. Other work on the computer also changes the times. All
+benchmarks used the reference BLAS and LAPACK of R. A faster BLAS, for example
+OpenBLAS, can make the times of fasttrop shorter. When R uses a faster BLAS,
+fasttrop also uses it. In the Python runs, each package used its default
+solver options.

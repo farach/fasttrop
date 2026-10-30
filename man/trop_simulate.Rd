@@ -32,7 +32,8 @@ the panel. For a staggered design, the treatment starts in one of the last
 
 \item{sigma}{The standard deviation of the noise.}
 
-\item{selection}{The strength of the selection on the first factor loading.}
+\item{selection}{The weight of the first factor loading in the selection of
+the treated units. With zero, the selection is random.}
 
 \item{design}{Use \code{"block"} or \code{"staggered"}.}
 
@@ -45,9 +46,16 @@ The column \code{y0} contains the outcome without the treatment.
 }
 \description{
 \code{trop_simulate()} makes a balanced panel with unit effects, time effects, a
-low-rank interactive term, and Gaussian noise. The selection of treated units
-can use the first factor loading. This selection causes a bias in two-way
-fixed effects. TROP is for this type of problem.
+low-rank interactive term, and Gaussian noise. Each unit gets a score, which
+is \code{selection} times its first factor loading plus random noise. The units
+with the highest scores get the treatment.
+
+With a positive value of \code{selection}, a unit with a larger loading has a
+higher probability of treatment. With a negative value, a unit with a smaller
+loading has a higher probability. With zero, the loading has no effect on
+the selection. Two-way fixed effects (TWFE) does not model this factor, so
+its estimate for one panel can have a large error. TROP can reduce such
+errors, but some error can stay.
 }
 \examples{
 head(trop_simulate(seed = 1))

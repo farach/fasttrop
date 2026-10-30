@@ -1,4 +1,4 @@
-"""Reference results for the oracle tests of fasttrop (condition C1 of the council).
+"""Reference results for the oracle tests of fasttrop.
 
 The script calculates results with fixed tuning parameters on the fixture
 panels. It uses two independent implementations at the commits in

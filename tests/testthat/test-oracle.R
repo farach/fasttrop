@@ -1,7 +1,7 @@
-# Condition C1 of the council: agreement with the reference implementations
-# for fixed tuning parameters. The file fixtures/oracle_meta.json gives the
-# commits. The script data-raw/oracle_fixtures.py made the reference results
-# on the panels from data-raw/make_fixtures.R.
+# Agreement with the reference implementations for fixed tuning parameters.
+# The file fixtures/oracle_meta.json gives the commits. The script
+# data-raw/oracle_fixtures.py made the reference results on the panels from
+# data-raw/make_fixtures.R.
 #
 # Tolerances: diff-diff uses a tolerance of 1e-9 and fasttrop uses 1e-10.
 # Thus, the ATTs and the cell effects must agree to 1e-6. The package of the

@@ -10,10 +10,9 @@
  * throttling (EcoQoS) for the thread while the C code runs. Then Windows
  * controls the thread again. The calls can nest. Windows 11 uses power
  * throttling on processes that run in the background for a long time, for
- * example an R session with a long calculation. In a test, power throttling
- * made the same C code approximately 1.3 times slower in an R session. On
- * other operating systems, or with throttle = TRUE, these functions have no
- * effect.
+ * example an R session with a long calculation. Power throttling can make the
+ * C code slower. On other operating systems, or with throttle = TRUE, these
+ * functions have no effect.
  */
 #ifdef _WIN32
 #if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0602

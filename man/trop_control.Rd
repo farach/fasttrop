@@ -42,9 +42,8 @@ implementations. Both methods find the minimum of the same convex
 objective. \code{"prox"} usually calculates fewer singular value decompositions.}
 
 \item{throttle}{Logical. Windows can use power throttling (EcoQoS) to make
-processes that run in the background for a long time slower. In a test,
-power throttling made the same C code approximately 1.3 times slower in an
-R session.
+processes that run in the background for a long time slower. An R session
+with a long calculation can be such a process.
 
 With \code{FALSE}, the default, each thread that runs the C code of fasttrop
 tells Windows not to use power throttling on it. When the C code stops,

@@ -1,4 +1,4 @@
-"""Times of the Python TROP packages (condition C4 of the council).
+"""Times of the Python TROP packages.
 
 This script measures the same calculations as inst/bench/reference_timings.R,
 on the same panels and with the same fixed tuning parameters. Each package

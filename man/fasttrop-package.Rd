@@ -9,7 +9,7 @@
 The package calculates the Triply Robust Panel (TROP) estimator of Athey,
 Imbens, Qu, and Viviano (2026). The estimator adds unit weights, time
 weights, and a low-rank term with a nuclear-norm penalty to a model with
-two-way fixed effects. All calculations run in C. The C code can use more
+two-way fixed effects. The model fits run in C. The C code can use more
 than one thread with 'OpenMP'.
 }
 \details{
@@ -24,6 +24,7 @@ Triply Robust Panel Estimators. \emph{Journal of Applied Econometrics}.
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://farach.github.io/fasttrop/}
   \item \url{https://github.com/farach/fasttrop}
   \item Report bugs at \url{https://github.com/farach/fasttrop/issues}
 }

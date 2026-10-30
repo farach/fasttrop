@@ -1,6 +1,5 @@
-# Condition C3 of the council: simulations with a known effect. The
-# simulations use a block design and a factor model. This is the setting of
-# Theorem 5.1 of the paper.
+# Simulations with a known effect. The simulations use a block design and a
+# factor model. This is the setting of Theorem 5.1 of the paper.
 #
 # The untreated outcomes have unit effects, time effects, two factors, and
 # noise. The first factor is a fixed linear trend. The script draws the second

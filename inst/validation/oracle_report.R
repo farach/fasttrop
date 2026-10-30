@@ -1,5 +1,5 @@
 # Calculate the largest differences between fasttrop and each reference
-# implementation (condition C1).
+# implementation.
 library(fasttrop)
 fx_dir <- file.path("tests", "testthat", "fixtures")
 read_fx <- function(nm) {

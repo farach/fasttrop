@@ -1,4 +1,4 @@
-# Condition C2 of the council: correct tuning and inference.
+# Tests for the tuning and the inference.
 
 test_that("leave-one-out CV holds each cell out of its own fit and its own distances", {
   p <- small_panel(seed = 13, n_units = 10, n_periods = 8, n_treated = 3, n_post = 2)

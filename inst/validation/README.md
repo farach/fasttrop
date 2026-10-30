@@ -1,10 +1,11 @@
 # Validation
 
 This folder has the scripts and the results for the validation of fasttrop.
-The validation follows the conditions C1 to C5 of the research council that
-selected the method. The package README gives a summary.
+The validation has five parts: agreement with the reference implementations,
+tuning and inference, simulations with a known effect, speed, and the limits
+of the claims. The package README gives a summary.
 
-## C1. Agreement with the reference implementations
+## Agreement with the reference implementations
 
 The validation uses two reference implementations at fixed commits:
 
@@ -54,7 +55,7 @@ file `tests/testthat/test-oracle.R` makes sure of these results. The
 tolerances are 1e-6 for `diff-diff`, 1e-4 for the authors' package, and a
 relative 1e-7 for the objective value.
 
-## C2. Tuning and inference
+## Tuning and inference
 
 The file `tests/testthat/test-tuning-inference.R` makes sure of these
 properties:
@@ -67,8 +68,9 @@ properties:
   search stops at a fixed point, where no single move on the grid gives a
   better score.
 - Each bootstrap draw is equal to a new estimate on the resampled panel, for
-  both methods. The tuning parameters stay fixed, as in Algorithm 3 of the
-  paper.
+  both methods. fasttrop keeps the tuning parameters fixed in each draw.
+  Algorithm 3 of the paper gives the resampling, but it does not say whether
+  to select the tuning parameters again.
 - The stratified bootstrap draws treated and untreated units separately. The
   option `resample = "controls"` keeps the treated units fixed.
 - With a seed, the results are the same in each run. The functions do not
@@ -80,19 +82,60 @@ independent R calculation of the formula in the paper. Another test makes sure
 that `lambda = c(time = 0, unit = 0, nn = Inf)` gives the same result as
 imputation with two-way fixed effects. This test has cells with `NA` outcomes.
 
-## C3. Simulations with a known effect
+## Simulations with a known effect
 
 The script `known_truth.R` runs the simulations A, A2, and B. The top of the
-script gives the details of each simulation. The script
+script gives the details of each simulation. Simulations A and B used 200
+replications, and simulation A2 used 100 replications. The script
 `summarize_known_truth.R` makes the files `known-truth-summary-*.csv` from the
-saved draws. The package README gives the results and their interpretation.
+saved draws.
 
-## C4. Speed
+In each simulation, the true effect is 1 for each treated cell. The untreated
+outcomes have unit effects, time effects, a factor with a linear trend, a
+second factor, and noise. The treatment starts in the same period for all
+treated units. The intervals come from the bootstrap of the package. In the
+table, SE is the standard error and RMSE is the root mean square error.
+
+| Simulation | Method | Bias (Monte Carlo SE) | RMSE | Coverage, normal interval | Coverage, percentile interval |
+|---|---|---|---|---|---|
+| A: 10 of 40 units, random selection | TWFE | -0.10 (0.05) | 0.75 | 0.890 | 0.870 |
+| | TROP local | -0.04 (0.02) | 0.30 | 0.940 | 0.890 |
+| | TROP global | -0.03 (0.02) | 0.29 | 0.925 | 0.930 |
+| A2: 30 of 80 units, random selection | TWFE | -0.08 (0.03) | 0.31 | 0.920 | 0.930 |
+| | TROP local | -0.04 (0.02) | 0.17 | 0.970 | 0.960 |
+| | TROP global | -0.03 (0.02) | 0.16 | 0.990 | 0.980 |
+| B: 10 of 40 units, selection on the trend | TWFE | 1.20 (0.05) | 1.37 | 0.500 | 0.500 |
+| | TROP local | 0.64 (0.02) | 0.72 | 0.475 | 0.390 |
+| | TROP global | 0.37 (0.02) | 0.46 | 0.700 | 0.645 |
+
+With random selection, the bias of each estimator is less than three Monte
+Carlo standard errors. The RMSE of TROP is 44% to 62% less than the RMSE of
+TWFE. All three methods use the same panels. Thus, the small negative biases
+are the same noise for all methods.
+
+For TROP, the coverage of the normal interval is near 95%. With 100 draws, the
+coverage of the percentile interval is only 89% for the local method in
+simulation A. For this reason, the normal interval is the default. In
+simulation A2 with 30 treated units, no coverage is less than 95% by more than
+two Monte Carlo standard errors. The global interval has a coverage of 0.99,
+so it is wider than necessary. The paper also says that the bootstrap is
+correct only with many treated units.
+
+In simulation B, the selection of treated units uses their loading on the
+trend factor. Thus, TWFE has a large bias. TROP removes approximately half of
+this bias with the local method and two thirds with the global method. But
+some bias stays, and the coverage of the intervals is less than 95%.
+
+This result gives no general rule about which weights can remove a bias.
+Under the assumptions of the paper, a model without bias can also remove it.
+Thus, this result applies to this simulation only.
+
+## Speed
 
 The folder `inst/bench` has the speed benchmarks. Refer to
 `inst/bench/README.md`.
 
-## C5. Limits of the claims
+## Limits of the claims
 
 The equations of the package come from arXiv version 3 of the paper. The
 documentation gives the triple robustness result only for a block design. The

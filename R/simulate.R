@@ -1,9 +1,17 @@
 #' Simulated panel with a factor structure
 #'
+#' @description
 #' `trop_simulate()` makes a balanced panel with unit effects, time effects, a
-#' low-rank interactive term, and Gaussian noise. The selection of treated units
-#' can use the first factor loading. This selection causes a bias in two-way
-#' fixed effects. TROP is for this type of problem.
+#' low-rank interactive term, and Gaussian noise. Each unit gets a score, which
+#' is `selection` times its first factor loading plus random noise. The units
+#' with the highest scores get the treatment.
+#'
+#' With a positive value of `selection`, a unit with a larger loading has a
+#' higher probability of treatment. With a negative value, a unit with a smaller
+#' loading has a higher probability. With zero, the loading has no effect on
+#' the selection. Two-way fixed effects (TWFE) does not model this factor, so
+#' its estimate for one panel can have a large error. TROP can reduce such
+#' errors, but some error can stay.
 #'
 #' @param n_units,n_periods The number of units and the number of periods.
 #' @param n_treated The number of treated units.
@@ -13,7 +21,8 @@
 #' @param effect The constant treatment effect on each treated cell.
 #' @param rank The rank of the interactive term.
 #' @param sigma The standard deviation of the noise.
-#' @param selection The strength of the selection on the first factor loading.
+#' @param selection The weight of the first factor loading in the selection of
+#'   the treated units. With zero, the selection is random.
 #' @param design Use `"block"` or `"staggered"`.
 #' @param seed An optional seed. The function does not change the state of the
 #'   random number generator in the R session.
