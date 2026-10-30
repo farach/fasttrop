@@ -2,7 +2,7 @@
 % Please edit documentation in R/control.R
 \name{trop_control}
 \alias{trop_control}
-\title{Solver controls}
+\title{Solver options}
 \usage{
 trop_control(
   max_iter = 100L,
@@ -15,44 +15,48 @@ trop_control(
 )
 }
 \arguments{
-\item{max_iter}{Maximum outer iterations. For \code{solver = "block"} these are
-block-coordinate sweeps; for \code{solver = "prox"} the step budget is
-\code{max_iter * max_inner} accelerated proximal steps.}
+\item{max_iter}{The maximum number of outer iterations. With
+\code{solver = "block"}, each outer iteration is one sweep of the blocks. With
+\code{solver = "prox"}, the maximum number of proximal steps is
+\code{max_iter * max_inner}.}
 
-\item{max_inner}{Proximal (FISTA) iterations per outer iteration.}
+\item{max_inner}{The number of proximal steps in each outer iteration. Each
+step is a step of FISTA, an accelerated proximal gradient method.}
 
-\item{tol}{Convergence tolerance on the maximum absolute change of the
-iterates between steps.}
+\item{tol}{The convergence tolerance. The solver stops when the largest
+absolute change of the iterates between two steps is less than \code{tol}.}
 
-\item{threads}{Number of 'OpenMP' threads. Defaults to the option
-\code{fasttrop.threads}, or the number of physical cores.}
+\item{threads}{The number of 'OpenMP' threads. The default comes from
+\code{\link[=trop_threads]{trop_threads()}}.}
 
-\item{warm}{Logical. If \code{TRUE}, fits for successive cells of the same unit
-start from the previous solution. Results then agree with cold starts up
-to the convergence tolerance and remain deterministic for any thread count.}
+\item{warm}{Logical. If \code{TRUE}, the fit for a cell starts from the solution
+for the previous cell of the same unit. If \code{FALSE}, each fit starts from
+zero. Both options give the same results in the limits of \code{tol}. The
+number of threads does not change the results.}
 
-\item{solver}{\code{"prox"} (default) runs an accelerated proximal gradient on the
-low-rank term with the unit and time effects profiled out at every step
-and adaptive restart. \code{"block"} runs the block-coordinate scheme of the
-reference implementations (one fixed-effect sweep, then \code{max_inner}
-proximal steps per outer iteration). Both minimize the same convex
-objective and agree at convergence; \code{"prox"} usually needs far fewer
-singular value decompositions.}
+\item{solver}{Use \code{"prox"}, the default, or \code{"block"}. \code{"prox"} is an
+accelerated proximal gradient method on the low-rank term. At each step, it
+calculates the unit and time effects again, and it uses an adaptive
+restart. \code{"block"} is the block coordinate method of the reference
+implementations. Both methods find the minimum of the same convex
+objective. \code{"prox"} usually calculates fewer singular value decompositions.}
 
-\item{throttle}{Logical. Windows may slow down long-running background
-processes to save power (EcoQoS power throttling). In a measured R session
-this made identical native work about 1.3 times slower than in a fresh
-process. With the default \code{FALSE}, each thread running a fasttrop kernel
-asks Windows not to throttle it while the kernel runs, then hands the
-decision back to the system. Use \code{TRUE} to keep the system policy.
-Ignored on other platforms.}
+\item{throttle}{Logical. Windows can use power throttling (EcoQoS) to make
+processes that run in the background for a long time slower. In a test,
+power throttling made the same C code approximately 1.3 times slower in an
+R session.
+
+With \code{FALSE}, the default, each thread that runs the C code of fasttrop
+tells Windows not to use power throttling on it. When the C code stops,
+Windows controls the thread again. With \code{TRUE}, Windows uses its usual
+policy. On other operating systems, this option has no effect.}
 }
 \value{
 A list of class \code{trop_control}.
 }
 \description{
-Options for the native weighted low-rank solver shared by estimation,
-cross-validation, and the bootstrap.
+\code{trop_control()} sets the options of the weighted low-rank solver in C. The
+estimate, the cross-validation, and the bootstrap all use this solver.
 }
 \examples{
 trop_control(tol = 1e-8, threads = 2)

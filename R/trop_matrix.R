@@ -1,12 +1,14 @@
 #' TROP estimator for outcome and treatment matrices
 #'
-#' Matrix interface to [trop()]. Rows are units and columns are periods.
+#' `trop_matrix()` is the matrix version of [trop()]. The rows are units and
+#' the columns are periods.
 #'
-#' @param Y Numeric matrix of outcomes (units x periods). `NA` marks
-#'   unobserved cells.
-#' @param W Matrix of 0/1 treatment indicators with the same dimensions.
+#' @param Y A numeric matrix of outcomes with one row for each unit and one
+#'   column for each period. `NA` shows a cell without an outcome.
+#' @param W A matrix of treatment indicators with the values 0 and 1. It must
+#'   have the same dimensions as `Y`.
 #' @inheritParams trop
-#' @return An object of class `trop`.
+#' @return An object of class `trop`. Refer to [trop()].
 #' @examples
 #' set.seed(1)
 #' Y <- matrix(rnorm(15 * 10), 15, 10)
@@ -32,12 +34,14 @@ trop_matrix <- function(Y, W, method = c("local", "global"), lambda = NULL, grid
   fit
 }
 
-#' Validate inputs and draw every random quantity for a TROP fit
+#' Examine the inputs and make all random draws for a TROP fit
 #'
-#' Returns a plan with the panel matrices, design, and all sampled inputs
-#' (cross-validation cells, placebo sets, bootstrap rows) as 0-based integer
-#' matrices. [trop_run()] then makes only deterministic native calls, so the
-#' plan can be serialized for the standalone C benchmark driver.
+#' The function returns a plan. The plan contains the panel matrices, the
+#' design, and all sampled inputs. The sampled inputs are the cross-validation
+#' cells, the placebo sets, and the bootstrap rows, as integer matrices with
+#' indices that start at 0. Then `trop_run()` makes only deterministic calls to
+#' the C code. Thus, the benchmark can write the plan to a file for the C
+#' program.
 #' @noRd
 trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, grid = trop_grid(),
                          cv_cells = NULL, n_placebo = 200L, placebo_size = 1L, max_cycles = 10L,
@@ -52,7 +56,7 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
   if (!inherits(control, "trop_control")) control <- do.call(trop_control, as.list(control))
   check_count(max_cycles, "max_cycles")
   if (!is.numeric(conf_level) || length(conf_level) != 1L || conf_level <= 0 || conf_level >= 1) {
-    stop("`conf_level` must be in (0, 1).", call. = FALSE)
+    stop("`conf_level` must be more than 0 and less than 1.", call. = FALSE)
   }
   if (!is.null(lambda)) lambda <- as_lambda(lambda)
   p <- as_panel_inputs(Y, W)
@@ -61,24 +65,26 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
   never <- setdiff(seq_len(N), design$treated)
   if (method == "global") {
     if (design$type != "block") {
-      stop("`method = \"global\"` requires a block design (all treated units start together and stay treated). Use `method = \"local\"`.",
+      stop("`method = \"global\"` is only for a block design. In a block design, all treated units start in the same period and stay treated. For other designs, use `method = \"local\"`.",
            call. = FALSE)
     }
-    if (length(never) < 2L) stop("`method = \"global\"` needs at least 2 never-treated units.", call. = FALSE)
+    if (length(never) < 2L) {
+      stop("`method = \"global\"` must have at least 2 units that are never treated.", call. = FALSE)
+    }
   }
   if (design$type != "block") {
-    warning("TROP's triple-robustness result (Theorem 5.1) is proven for block assignment only; this design is ",
+    warning("Theorem 5.1 of the paper (triple robustness) has a proof only for a block design. This design is ",
             design$type, ".", call. = FALSE)
   }
   if (design$type == "general") {
-    warning("Treatment switches off for some units; the estimator assumes no carryover or dynamic effects.",
+    warning("The treatment stops for some units. The estimator assumes no carryover effects and no dynamic effects.",
             call. = FALSE)
   }
   if (se == "bootstrap") {
     check_count(n_boot, "n_boot")
     if (design$n_treated_units < 5L) {
-      warning("Bootstrap validity requires a growing number of treated units (paper Algorithm 3); only ",
-              design$n_treated_units, " unit(s) are treated.", call. = FALSE)
+      warning("The bootstrap of Algorithm 3 is correct only with many treated units. This panel has only ",
+              design$n_treated_units, " treated unit(s).", call. = FALSE)
     }
   }
 
@@ -102,7 +108,8 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
       check_count(size, "placebo_size")
       check_count(n_placebo, "n_placebo")
       if (size >= length(never)) {
-        stop("`placebo_size` must be smaller than the number of never-treated units.", call. = FALSE)
+        stop("`placebo_size` must be less than the number of units that are never treated.",
+             call. = FALSE)
       }
       Yc <- p$Y[never, , drop = FALSE]
       oc <- p$obs[never, , drop = FALSE]
@@ -130,7 +137,7 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
        dimnames = dimnames(Y))
 }
 
-#' Run the native kernels for a prepared plan
+#' Run the C calculations for a prepared plan
 #' @noRd
 trop_run <- function(plan) {
   t0 <- Sys.time()
@@ -153,7 +160,7 @@ trop_run <- function(plan) {
                    plan$grid$time, plan$grid$unit, plan$grid$nn, as.double(plan$init),
                    plan$max_cycles, ctrl)
       if (!isTRUE(res$fixed_point)) {
-        warning("Placebo cross-validation did not reach a fixed point within `max_cycles`.",
+        warning("The placebo cross-validation did not find a fixed point in `max_cycles` cycles.",
                 call. = FALSE)
       }
       cv <- list(criterion = "placebo_rmse", score = res$score, n_evals = res$n_evals,
@@ -176,11 +183,11 @@ trop_run <- function(plan) {
   }
   kernel <- kernel + est$kernel_seconds
   if (n_skipped > 0L) {
-    warning(n_skipped, " treated cell(s) were skipped because their unit and period effects are not identified by the weighted untreated cells.",
+    warning("The estimator did not use ", n_skipped, " treated cell(s). The weighted untreated cells do not identify the unit effect and the period effect of these cells.",
             call. = FALSE)
   }
   if (n_nonconv > 0L) {
-    warning(n_nonconv, " fit(s) did not converge; consider a larger `max_iter` in trop_control().",
+    warning(n_nonconv, " fit(s) did not converge. Use a larger `max_iter` in trop_control().",
             call. = FALSE)
   }
   tau <- est$tau
@@ -206,7 +213,8 @@ trop_run <- function(plan) {
     }
     if (length(ok) < length(draws)) {
       warning(length(draws) - length(ok), " of ", length(draws),
-              " bootstrap draws failed and were excluded.", call. = FALSE)
+              " bootstrap draws failed. The standard error and the interval do not use these draws.",
+              call. = FALSE)
     }
     boot <- list(draws = draws, n_failed = length(draws) - length(ok), resample = plan$resample)
   }
@@ -233,7 +241,8 @@ trace_frame <- function(m) {
   data.frame(time = m[, 1], unit = m[, 2], nn = m[, 3], score = m[, 4])
 }
 
-# Run code with a temporary seed and restore the caller's RNG state.
+# Set a temporary seed. The function restore() gives the random number
+# generator of the caller its earlier state again.
 seed_scope <- function(seed) {
   if (is.null(seed)) return(list(restore = function() invisible(NULL)))
   had <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)

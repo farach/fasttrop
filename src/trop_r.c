@@ -1,7 +1,7 @@
 /*
- * R interface for the fasttrop native core. Each entry point checks inputs,
- * passes raw pointers to trop_core.c, and reports the native kernel time so
- * callers can separate kernel cost from R-side overhead.
+ * R interface for the fasttrop C core. Each entry point examines its inputs,
+ * gives raw pointers to trop_core.c, and returns the time in the C code. Thus,
+ * the caller can separate the cost of the C code from the cost of the R code.
  */
 #include <R.h>
 #include <Rinternals.h>
@@ -16,10 +16,10 @@ static void chk_fn(void *data) { (void) data; R_CheckUserInterrupt(); }
 static int r_interrupt(void) { return !R_ToplevelExec(chk_fn, NULL); }
 
 static void fail_rc(int rc) {
-  if (rc == TROP_ERR_ALLOC) Rf_error("fasttrop: memory allocation failed in the native core.");
-  if (rc == TROP_ERR_INTERRUPT) Rf_error("fasttrop: interrupted by the user.");
-  if (rc == TROP_ERR_INPUT) Rf_error("fasttrop: invalid input passed to the native core.");
-  if (rc != TROP_OK) Rf_error("fasttrop: native core error code %d.", rc);
+  if (rc == TROP_ERR_ALLOC) Rf_error("fasttrop: the C code could not get the necessary memory.");
+  if (rc == TROP_ERR_INTERRUPT) Rf_error("fasttrop: the user stopped the calculation.");
+  if (rc == TROP_ERR_INPUT) Rf_error("fasttrop: the C code got an incorrect input.");
+  if (rc != TROP_OK) Rf_error("fasttrop: the C code stopped with error code %d.", rc);
 }
 
 static double list_num(SEXP lst, const char *name, double def) {
@@ -40,7 +40,7 @@ static trop_opts read_opts(SEXP control) {
   o.warm = (int) list_num(control, "warm", 1);
   o.solver = (int) list_num(control, "solver", 0);
   o.throttle = (int) list_num(control, "throttle", 0);
-  if (o.max_iter < 1 || o.max_inner < 1 || !(o.tol > 0)) Rf_error("Invalid control settings.");
+  if (o.max_iter < 1 || o.max_inner < 1 || !(o.tol > 0)) Rf_error("The control options are not correct.");
   return o;
 }
 
@@ -312,13 +312,13 @@ SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP method, SEXP k, SEXP lambda, SEX
   SEXP rd = Rf_getAttrib(rows, R_DimSymbol);
   int B = INTEGER(rd)[0];
   if (INTEGER(rd)[1] != p.N) Rf_error("`rows` must have N columns.");
-  /* rows arrive as an R (column-major) B x N matrix; the core wants row-major. */
+  /* rows is an R matrix, B x N and column-major. The core uses row-major order. */
   int *rm = (int *) R_alloc((size_t) B * (size_t) p.N, sizeof(int));
   const int *ri = INTEGER(rows);
   for (int b = 0; b < B; b++)
     for (int i = 0; i < p.N; i++) {
       int v = ri[b + (R_xlen_t) B * i];
-      if (v < 0 || v >= p.N) Rf_error("`rows` holds an out-of-range unit index.");
+      if (v < 0 || v >= p.N) Rf_error("`rows` contains a unit index that is out of range.");
       rm[(size_t) b * (size_t) p.N + (size_t) i] = v;
     }
   SEXP draws = PROTECT(Rf_allocVector(REALSXP, B));

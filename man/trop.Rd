@@ -27,95 +27,125 @@ trop(
 )
 }
 \arguments{
-\item{data}{A data frame in long format, one row per unit-period.}
+\item{data}{A data frame in long format with one row for each unit and
+period.}
 
-\item{outcome, treatment, unit, time}{Column names (strings). Treatment must be
-0/1. Missing outcomes are allowed and are excluded from the fits.}
+\item{outcome, treatment, unit, time}{Column names as strings. The treatment
+must be 0 or 1. Outcomes can be \code{NA}. The fits do not use these cells.}
 
-\item{method}{\code{"local"} or \code{"global"}; see Methods.}
+\item{method}{Use \code{"local"} or \code{"global"}. Refer to the section Methods.}
 
-\item{lambda}{Optional tuning parameters as a named numeric vector or list
-with \code{time}, \code{unit}, and \code{nn}. If \code{NULL}, they are chosen by
-cross-validation over \code{grid}.}
+\item{lambda}{The tuning parameters as a named numeric vector or a named list
+with the names \code{time}, \code{unit}, and \code{nn}. If \code{lambda} is \code{NULL},
+cross-validation selects the tuning parameters from \code{grid}.}
 
-\item{grid}{Tuning grids from \code{\link[=trop_grid]{trop_grid()}}.}
+\item{grid}{The tuning grids from \code{\link[=trop_grid]{trop_grid()}}.}
 
-\item{cv_cells}{For \code{method = "local"}: number of untreated cells sampled
-for the leave-one-out criterion. \code{NULL} uses every untreated cell (Eq. 5).}
+\item{cv_cells}{For the local method, the number of untreated cells in a
+random sample for the leave-one-out criterion. If \code{cv_cells} is \code{NULL},
+the criterion uses all untreated cells, as in Eq. 5 of the paper.}
 
-\item{n_placebo, placebo_size}{For \code{method = "global"}: number of placebo
-sets and untreated units per set (defaults follow the reference package:
-200 sets of 1 unit).}
+\item{n_placebo, placebo_size}{For the global method, the number of placebo
+sets and the number of untreated units in each set. The defaults are the
+values of the Python package from the authors: 200 sets of 1 unit.}
 
-\item{max_cycles}{Maximum coordinate-search cycles.}
+\item{max_cycles}{The maximum number of cycles of the coordinate search.}
 
-\item{se}{\code{"bootstrap"} or \code{"none"}.}
+\item{se}{Use \code{"bootstrap"} for bootstrap standard errors or \code{"none"} for no
+standard errors.}
 
-\item{n_boot}{Number of bootstrap draws.}
+\item{n_boot}{The number of bootstrap draws.}
 
-\item{resample}{\code{"stratified"} or \code{"controls"}; see Inference.}
+\item{resample}{Use \code{"stratified"} or \code{"controls"}. Refer to the section
+Inference.}
 
-\item{conf_level}{Confidence level of the interval.}
+\item{conf_level}{The confidence level of the interval.}
 
-\item{ci}{\code{"normal"} (estimate plus or minus a normal quantile times the
-bootstrap standard error) or \code{"percentile"} (quantiles of the bootstrap
-draws); see Inference.}
+\item{ci}{Use \code{"normal"} or \code{"percentile"}. The normal interval is the
+estimate plus or minus a normal quantile times the bootstrap standard
+error. The percentile interval uses quantiles of the bootstrap draws. Refer
+to the section Inference.}
 
-\item{control}{Solver settings from \code{\link[=trop_control]{trop_control()}}.}
+\item{control}{The solver options from \code{\link[=trop_control]{trop_control()}}.}
 
-\item{seed}{Optional integer seed for cell sampling, placebo sets, and the
-bootstrap. The global random state is restored afterwards.}
+\item{seed}{An optional integer seed for the sampled cells, the placebo sets,
+and the bootstrap. The function does not change the state of the random
+number generator in the R session.}
 }
 \value{
-An object of class \code{trop} with the ATT (\code{estimate}), bootstrap
-standard error and confidence interval, cell-level effects (\code{tau}), the
-tuning parameters, the cross-validation trace, convergence diagnostics,
-and timings that separate native kernel time from total time.
+An object of class \code{trop}. It is a list with these elements and with
+other elements:
+\itemize{
+\item \code{estimate}: the ATT.
+\item \code{std.error}, \code{conf.low}, and \code{conf.high}: the bootstrap standard error
+and the confidence interval.
+\item \code{tau}: a matrix with the effect for each treated cell.
+\item \code{lambda}: the tuning parameters.
+\item \code{cv}: the results of the cross-validation, or \code{NULL} for fixed tuning
+parameters.
+\item \code{boot}: the bootstrap draws.
+\item \code{timing}: the time in the C code and the total time, in seconds.
+}
 }
 \description{
-Estimates the average treatment effect on the treated (ATT) with the TROP
-estimator of Athey, Imbens, Qu, and Viviano (2026). For each treated cell,
-the counterfactual untreated outcome comes from a weighted two-way fixed
-effects model with a nuclear-norm penalized low-rank term, fitted on
-untreated cells. Unit weights decay with the distance between pre-treatment
-outcome paths; time weights decay with the distance in periods.
+\code{trop()} calculates the average treatment effect on the treated (ATT) with
+the TROP estimator of Athey, Imbens, Qu, and Viviano (2026). A cell is one
+unit in one period. For each treated cell, a model calculates the outcome
+without the treatment. The model has two-way fixed effects and a low-rank
+term with a nuclear-norm penalty, and it uses only untreated cells. Unit
+weights decrease with the distance between the outcome history of a unit and
+the treated unit. Time weights decrease with the distance in periods.
 }
 \section{Methods}{
 
 \itemize{
-\item \code{method = "local"} follows the paper's Eq. 12 and Algorithm 2. Every
-treated cell gets its own unit and time weights and its own fit. Tuning
-uses the leave-one-out criterion of Eq. 4-5 over untreated cells and the
-coordinate search of the paper's footnote 2. Works for block, staggered,
-and general assignment.
-\item \code{method = "global"} matches the authors' Python reference package: one
-fit for a block design, with time distance to the centre of the treated
-block and unit distance to the average treated pre-period path. Tuning uses
-placebo cross-validation on untreated units (coordinate cycling from the
-grid means). Requires a block design.
+\item The local method (\code{method = "local"}) is the estimator of Eq. 12 and
+Algorithm 2 of the paper. Each treated cell has its own unit weights, time
+weights, and fit. The leave-one-out criterion of Eq. 4 and Eq. 5 selects
+the tuning parameters. The coordinate search follows footnote 2 of the
+paper. You can use this method for block, staggered, and general designs.
+\item The global method (\code{method = "global"}) is the estimator of the Python
+package from the authors. It calculates one fit for a block design. The
+time weights decrease with the distance from the center of the treated
+block. The unit weights decrease with the distance from the average
+treated unit before the treatment. Placebo cross-validation on untreated
+units selects the tuning parameters. The coordinate search starts at the
+means of the grids.
 }
+}
+
+\section{Designs}{
+
+In a block design, all treated units start the treatment in the same period
+and stay treated to the end of the panel. In a staggered design, the start
+periods are different, but the treatment does not stop. In a general design,
+the treatment stops for one or more units.
 }
 
 \section{Inference}{
 
-Standard errors come from the unit bootstrap of the paper's Algorithm 3,
-holding the tuning parameters fixed. \code{resample = "stratified"} resamples
-treated and untreated units separately; \code{"controls"} keeps the treated units
-fixed. The standard error is the standard deviation of the draws. The default
-interval is the normal interval built from it (\code{ci = "normal"}), which
-follows the paper's bootstrap variance. \code{ci = "percentile"} uses quantiles of
-the draws, as the authors' Python package does; it needs more draws for
-stable tail quantiles. The paper notes that bootstrap validity requires a
-growing number of treated units, so the package warns when fewer than 5
-units are treated.
+The unit bootstrap of Algorithm 3 of the paper gives the standard error. The
+bootstrap keeps the tuning parameters fixed. With \code{resample = "stratified"},
+the bootstrap draws treated and untreated units separately. With
+\code{resample = "controls"}, the treated units do not change. The standard error
+is the standard deviation of the draws.
+
+The default interval is the normal interval with this standard error, as in
+the bootstrap variance of the paper. With \code{ci = "percentile"}, the interval
+comes from quantiles of the draws, as in the Python package from the
+authors. A percentile interval is less accurate with a small number of
+draws. The paper also says that the bootstrap is correct only with many
+treated units. Thus, the function gives a warning message for a bootstrap
+with fewer than 5 treated units.
 }
 
-\section{Scope of the triple-robustness result}{
+\section{Limits of the triple robustness result}{
 
-The paper's Theorem 5.1 (bias bounded by the product of unit imbalance, time
-imbalance, and regression-adjustment error) is proven under block
-assignment. For staggered or general designs the estimator is defined, but
-that guarantee is not established, and the package warns.
+Theorem 5.1 of the paper gives a bound for the bias. The bound is the product
+of three terms: the unit imbalance, the time imbalance, and the error of the
+regression adjustment. The proof is only for a block design. For a staggered
+or general design, the function calculates the estimator, but the bound has
+no proof. Thus, the function gives a warning message for these designs.
 }
 
 \examples{

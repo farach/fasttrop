@@ -1,11 +1,16 @@
 /*
- * fasttrop native core. See trop_core.h for the interface and conventions.
+ * fasttrop C core. Refer to trop_core.h for the interface and the conventions.
  *
- * The weighted low-rank fit follows the block-coordinate scheme used by the
- * reference implementations: exact weighted-mean updates for the unit and time
- * effects, then FISTA-accelerated proximal steps with singular-value
- * soft-thresholding for the low-rank component. The objective is convex, so
- * any convergent scheme reaches the same optimum up to the tolerance.
+ * The weighted low-rank fit has two solvers. The default solver (fit_ws_prox)
+ * is an accelerated proximal gradient method on the low-rank term. At each
+ * step, it calculates the unit and time effects again, and it uses an adaptive
+ * restart.
+ *
+ * The block solver (fit_ws) is the block coordinate method of the reference
+ * implementations. It calculates the exact weighted means for the unit and
+ * time effects. Then it does FISTA steps with soft thresholds on the singular
+ * values. The objective is convex. Thus, both solvers find the same minimum in
+ * the limits of the tolerance.
  */
 #define USE_FC_LEN_T
 #include <Rconfig.h>
@@ -228,8 +233,9 @@ static int fit_ws(ws_t *ws, const double *Y, const double *w, double lam,
   return converged;
 }
 
-/* Weighted two-way fixed effects for R = Y - Z by alternating weighted means,
- * warm-started from ws->alpha and ws->beta. Returns the number of sweeps. */
+/* Weighted two-way fixed effects for R = Y - Z. The function calculates the
+ * weighted means for the units and for the periods in turn. It starts from
+ * ws->alpha and ws->beta, and it returns the number of sweeps. */
 static int twfe_sweeps(ws_t *ws, const double *Y, const double *Z, const double *w,
                        double tol, int max_sweeps) {
   int N = ws->N, T = ws->T, s;
@@ -268,10 +274,12 @@ static int twfe_sweeps(ws_t *ws, const double *Y, const double *Z, const double 
   return s;
 }
 
-/* Profiled accelerated proximal gradient: FISTA on L for
- * h(L) = min_{a,b} sum w (Y - a - b - L)^2 + lam ||L||_*, with the fixed
- * effects re-fitted exactly (to tolerance) at every extrapolated point and
- * gradient-based adaptive restart. Same objective and optimum as fit_ws. */
+/* Accelerated proximal gradient on the profile objective. The method does
+ * FISTA steps on L for
+ * h(L) = min_{a,b} sum w (Y - a - b - L)^2 + lam ||L||_*.
+ * At each extrapolated point, it fits the fixed effects again to the
+ * tolerance. It uses an adaptive restart from the gradient. The objective and
+ * the minimum are the same as for fit_ws. */
 static int fit_ws_prox(ws_t *ws, const double *Y, const double *w, double lam,
                        const trop_opts *o, int *iters) {
   int N = ws->N, T = ws->T;
@@ -390,7 +398,8 @@ static prep_t *prep_new(int N, int T) {
   return q;
 }
 
-/* Fill outcomes and control mask; build pairwise distance sums if needed. */
+/* Fill the outcomes and the control mask. If necessary, calculate the sums
+ * for the pairwise distances. */
 static void prep_fill(prep_t *q, const double *Y, const int *W, const int *obs,
                       const int *rows, int need_dist) {
   int N = q->N, T = q->T;
@@ -424,9 +433,10 @@ static void prep_fill(prep_t *q, const double *Y, const int *W, const int *obs,
   }
 }
 
-/* Observation-specific weights for target cell (i, t), paper Eq. 3: time weight
- * exp(-lt |t - s|); unit weight exp(-lu d_{-t}(j, i)) with the RMS gap over
- * periods where both units are observed controls, excluding period t. */
+/* Weights for the target cell (i, t), from Eq. 3 of the paper. The time
+ * weight is exp(-lt |t - s|). The unit weight is exp(-lu d_{-t}(j, i)). The
+ * RMS gap uses the periods in which both units are observed controls, but not
+ * period t. */
 static void local_weights(const prep_t *q, int i, int t, double lt, double lu,
                           int exclude_target, double *w, double *theta, double *omega) {
   int N = q->N, T = q->T;
@@ -498,8 +508,9 @@ static int estimable(ws_t *ws, const double *w, int i, int t) {
 /* Local estimator                                                           */
 /* ------------------------------------------------------------------------ */
 
-/* Serial or parallel local estimate on a prepared panel. Cells of the same
- * unit are processed in time order so warm starts are deterministic. */
+/* Serial or parallel local estimate on a prepared panel. The function
+ * processes the cells of the same unit in time order. Thus, the warm starts
+ * are deterministic. */
 static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
                                const int *rows, double lt, double lu, double ln,
                                const trop_opts *o, int parallel, double *tau,
@@ -739,8 +750,9 @@ static int lsearch_eval(lsearch_t *s, double lt, double lu, double ln, double *s
   return cache_put(&s->cache, lt, lu, ln, Q);
 }
 
-/* argmin over one coordinate; which: 0 time, 1 unit, 2 nn. Ties keep the
- * first grid value; all-infinite scores return the first grid value. */
+/* Minimum along one coordinate. The value of which is 0 for time, 1 for unit,
+ * and 2 for nn. For equal scores, the function keeps the first grid value. If
+ * all scores are infinite, the function returns the first grid value. */
 static int lsearch_line(lsearch_t *s, int which, const double *grid, int ng,
                         double lt, double lu, double ln, trop_interrupt_fn chk,
                         double *best_v, double *best_s) {
@@ -778,7 +790,7 @@ int trop_local_search(const trop_panel *p, const double *g_time, int n_time,
   if ((rc = lsearch_line(&s, 2, g_nn, n_nn, 0.0, 0.0, INFINITY, chk, &ln0, &sc)) != TROP_OK) goto done;
   if ((rc = lsearch_line(&s, 1, g_unit, n_unit, 0.0, 0.0, INFINITY, chk, &lu0, &sc)) != TROP_OK) goto done;
   lt = lt0; lu = lu0; ln = ln0;
-  /* Stage 2: coordinate cycling until the score stabilises. */
+  /* Stage 2: coordinate cycles until the score is stable. */
   for (int cyc = 0; cyc < max_cycles; cyc++) {
     if ((rc = lsearch_line(&s, 1, g_unit, n_unit, lt, lu, ln, chk, &lu, &sc)) != TROP_OK) goto done;
     if ((rc = lsearch_line(&s, 0, g_time, n_time, lt, lu, ln, chk, &lt, &sc)) != TROP_OK) goto done;
@@ -809,9 +821,10 @@ static int global_estimate_ws(ws_t *ws, const prep_t *q, const int *W, const int
   if (n_treated < 1 || k < 1 || pre < 1) return TROP_ERR_INPUT;
   double center = (double) T - (double) k / 2.0;
   for (int s = 0; s < T; s++) theta[s] = exp(-lt * fabs((double) s - center));
-  /* Pre-period cells are untreated in a block design, so ctrl marks them observed.
-   * Missing outcomes are skipped, as in diff-diff; a unit with no usable
-   * pre-period gets zero weight. */
+  /* In a block design, the cells before the treatment are untreated. Thus,
+   * ctrl shows which of these cells have an outcome. As in diff-diff, the
+   * calculation does not use missing outcomes. A unit without an outcome
+   * before the treatment gets a weight of zero. */
   for (int s = 0; s < pre; s++) {
     double a = 0.0;
     int c = 0;

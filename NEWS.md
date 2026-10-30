@@ -1,13 +1,27 @@
 # fasttrop 0.1.0
 
-* First version. Implements the Triply Robust Panel (TROP) estimator of Athey,
-  Imbens, Qu, and Viviano (2026): the paper's per-cell (local) estimator and the
-  block (global) estimator of the authors' reference software, leave-one-out and
-  placebo cross-validation, and the unit bootstrap of Algorithm 3 with normal
-  (default) or percentile intervals.
-* The computational core is C with OpenMP and R's BLAS/LAPACK. Results do not
-  depend on the number of threads.
-* On Windows, kernel threads opt out of power throttling while they run
-  (`trop_control(throttle = FALSE)`), because Windows slows long-running
-  background processes and this made identical native work about 1.3 times
-  slower inside an R session than in a fresh process.
+This is the first version of the package.
+
+## Estimator
+
+- The package calculates the Triply Robust Panel (TROP) estimator of Athey,
+  Imbens, Qu, and Viviano (2026).
+- The local method (`method = "local"`) is the estimator of the paper for each
+  treated cell. The global method (`method = "global"`) is the block estimator
+  of the Python package from the authors.
+- Leave-one-out cross-validation or placebo cross-validation selects the
+  tuning parameters.
+- The unit bootstrap of Algorithm 3 gives standard errors. The default
+  confidence interval is a normal interval. A percentile interval is also
+  available.
+
+## Speed
+
+- All calculations run in C with OpenMP and with the BLAS and LAPACK libraries
+  of R. The number of threads does not change the results.
+- On Windows, the C code tells Windows not to use power throttling on its
+  threads while it runs. In a long R session, power throttling made the same C
+  code approximately 1.3 times slower. To keep the usual Windows policy, use
+  `trop_control(throttle = TRUE)`.
+- The function `trop_threads()` gives at most 2 threads when `R CMD check`
+  sets the environment variable `_R_CHECK_LIMIT_CORES_`.

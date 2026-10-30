@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulate.R
 \name{trop_simulate}
 \alias{trop_simulate}
-\title{Simulate a panel with a factor structure}
+\title{Simulated panel with a factor structure}
 \usage{
 trop_simulate(
   n_units = 40L,
@@ -18,34 +18,36 @@ trop_simulate(
 )
 }
 \arguments{
-\item{n_units, n_periods}{Panel dimensions.}
+\item{n_units, n_periods}{The number of units and the number of periods.}
 
-\item{n_treated}{Number of treated units.}
+\item{n_treated}{The number of treated units.}
 
-\item{n_post}{Number of treated periods at the end of the panel (block
-design) or the latest adoption window (staggered design).}
+\item{n_post}{For a block design, the number of treated periods at the end of
+the panel. For a staggered design, the treatment starts in one of the last
+\code{n_post} periods.}
 
-\item{effect}{Constant treatment effect on treated cells.}
+\item{effect}{The constant treatment effect on each treated cell.}
 
-\item{rank}{Rank of the interactive component.}
+\item{rank}{The rank of the interactive term.}
 
-\item{sigma}{Noise standard deviation.}
+\item{sigma}{The standard deviation of the noise.}
 
-\item{selection}{Strength of selection on the first factor loading.}
+\item{selection}{The strength of the selection on the first factor loading.}
 
-\item{design}{\code{"block"} or \code{"staggered"}.}
+\item{design}{Use \code{"block"} or \code{"staggered"}.}
 
-\item{seed}{Optional seed; the global random state is restored afterwards.}
+\item{seed}{An optional seed. The function does not change the state of the
+random number generator in the R session.}
 }
 \value{
-A data frame with columns \code{unit}, \code{time}, \code{y}, \code{d}, and \code{y0}
-(the untreated potential outcome).
+A data frame with the columns \code{unit}, \code{time}, \code{y}, \code{d}, and \code{y0}.
+The column \code{y0} contains the outcome without the treatment.
 }
 \description{
-Generates a balanced panel with unit and time effects, a low-rank
-interactive component, and Gaussian noise. Treatment selection can depend
-on the factor loadings, which biases two-way fixed effects and is the
-setting TROP targets.
+\code{trop_simulate()} makes a balanced panel with unit effects, time effects, a
+low-rank interactive term, and Gaussian noise. The selection of treated units
+can use the first factor loading. This selection causes a bias in two-way
+fixed effects. TROP is for this type of problem.
 }
 \examples{
 head(trop_simulate(seed = 1))

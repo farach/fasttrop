@@ -1,17 +1,19 @@
 /*
- * Operating-system helpers for the fasttrop core, kept in their own
- * translation unit so <windows.h> never meets the R headers.
+ * Operating system functions for the fasttrop C core. This file is separate,
+ * so <windows.h> and the R headers are not in the same translation unit.
  *
- * - trop_wtime(): high-resolution monotonic wall clock. On Windows,
- *   omp_get_wtime() from MinGW's libgomp has only millisecond resolution, so
- *   QueryPerformanceCounter() is used instead.
- * - trop_qos_enter()/trop_qos_leave(): on Windows, opt the calling thread out
- *   of execution-speed power throttling (EcoQoS) while a native kernel runs,
- *   then return control of the thread to the system. Windows 11 throttles
- *   long-running background processes (such as an R session doing a long
- *   computation without a foreground window), which slowed identical native
- *   work by about 1.3x in a measured R session. Calls nest per thread. They do
- *   nothing on other platforms or when the user allows throttling.
+ * trop_wtime() is a high-resolution monotonic clock. On Windows, the
+ * omp_get_wtime() function of MinGW has a resolution of only one millisecond.
+ * Thus, trop_wtime() uses QueryPerformanceCounter().
+ *
+ * On Windows, trop_qos_enter() and trop_qos_leave() stop execution-speed power
+ * throttling (EcoQoS) for the thread while the C code runs. Then Windows
+ * controls the thread again. The calls can nest. Windows 11 uses power
+ * throttling on processes that run in the background for a long time, for
+ * example an R session with a long calculation. In a test, power throttling
+ * made the same C code approximately 1.3 times slower in an R session. On
+ * other operating systems, or with throttle = TRUE, these functions have no
+ * effect.
  */
 #ifdef _WIN32
 #if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0602
@@ -40,7 +42,8 @@ double trop_wtime(void) {
 }
 
 #ifdef _WIN32
-/* Not declared by every MinGW-w64 release; layout from the Windows SDK. */
+/* Some MinGW-w64 versions do not declare this type. The layout is from the
+ * Windows SDK. */
 typedef struct {
   ULONG Version;
   ULONG ControlMask;
@@ -55,8 +58,8 @@ static _Thread_local int qos_depth = 0;
 static void set_throttling(ULONG control_mask) {
   trop_thread_throttling_state s;
   s.Version = TROP_THROTTLING_VERSION;
-  s.ControlMask = control_mask; /* 0 hands the decision back to the system */
-  s.StateMask = 0;              /* with ControlMask set: do not throttle */
+  s.ControlMask = control_mask; /* 0 gives the control to Windows again */
+  s.StateMask = 0;              /* with ControlMask: no power throttling */
   SetThreadInformation(GetCurrentThread(), TROP_THREAD_POWER_THROTTLING, &s, sizeof s);
 }
 #endif

@@ -1,28 +1,34 @@
-"""Reference answers for fasttrop's oracle tests (council condition C1).
+"""Reference results for the oracle tests of fasttrop (condition C1 of the council).
 
-Computes fixed-lambda results on the fixture panels with two independent
-implementations, pinned to the commits recorded in oracle_meta.json:
+The script calculates results with fixed tuning parameters on the fixture
+panels. It uses two independent implementations at the commits in
+oracle_meta.json:
 
-* diff-diff (igerber/diff-diff, MIT): local TROP (paper Eq. 12 / Algorithm 2)
-  and its global block method.
-* trop (zhaonanq/TROP-Estimator, MIT, the paper authors' package): global
-  block TROP (TROP_TWFE_average), solved with CVXPY + CLARABEL.
+* diff-diff (igerber/diff-diff, MIT): the local method (Eq. 12 and
+  Algorithm 2 of the paper) and the global method for a block design.
+* trop (zhaonanq/TROP-Estimator, MIT, the package of the authors of the
+  paper): the global method for a block design (TROP_TWFE_average), with
+  CVXPY and CLARABEL.
 
-Outputs in tests/testthat/fixtures/:
-* oracle.csv            ATT per dataset, configuration, method, and reference.
-* oracle_cells.csv      diff-diff cell effects tau_it (local and global).
-* oracle_solver.csv     For configurations with a finite nuclear-norm penalty:
-                        the effective weights of one weighted fit and
-                        diff-diff's fitted values alpha_i + beta_t + L_it
-                        (+ mu for global), so the solver can be compared on
-                        identical weights.
-* oracle_objective.csv  diff-diff's objective value for those fits.
+The script writes these files to tests/testthat/fixtures/:
+* oracle.csv            The ATT for each panel, configuration, method, and
+                        reference.
+* oracle_cells.csv      The cell effects tau_it of diff-diff (local and
+                        global).
+* oracle_solver.csv     The weights of one weighted fit and the fitted values
+                        of diff-diff, alpha_i + beta_t + L_it (+ mu for the
+                        global method). The file has these values only for
+                        the configurations with a finite nuclear norm
+                        penalty. Thus, the tests can compare the solvers with
+                        the same weights.
+* oracle_objective.csv  The objective value of diff-diff for these fits.
 
-The diff-diff cell effects replicate the loop in
-TROPLocalMixin._fit_with_fixed_lambda using diff-diff's own internal functions;
-the script checks that their mean equals that method's ATT.
+The cell effects of diff-diff come from a copy of the loop in
+TROPLocalMixin._fit_with_fixed_lambda, with the internal functions of
+diff-diff. The script makes sure that their mean is equal to the ATT of that
+method.
 
-Usage (from the package root, with both repositories cloned):
+Usage, in the package folder, with clones of the two repositories:
     python data-raw/oracle_fixtures.py <path-to-TROP-Estimator> <path-to-diff-diff>
 """
 import json
@@ -56,7 +62,7 @@ def read_panel(name):
     df = pd.read_csv(f"{FIX}/{name}.csv")
     units = sorted(df["unit"].unique())
     times = sorted(df["time"].unique())
-    # diff-diff layout: periods in rows, units in columns.
+    # The layout of diff-diff: periods in rows and units in columns.
     Y = df.pivot(index="time", columns="unit", values="y").reindex(index=times, columns=units).values
     D = df.pivot(index="time", columns="unit", values="d").reindex(index=times, columns=units)
     D = D.fillna(0).astype(int).values
@@ -90,7 +96,7 @@ for name in ["D1", "D2", "D3", "D4"]:
         cfg = lam["config"]
         lt, lu, ln = float(lam["time"]), float(lam["unit"]), float(lam["nn"])
 
-        # Local: diff-diff's per-cell loop (_fit_with_fixed_lambda), keeping each tau.
+        # Local method: the loop of diff-diff for each cell (_fit_with_fixed_lambda). Keep each tau.
         est = TROP(method="local", max_iter=MAX_ITER, tol=TOL)
         t0 = time.time()
         taus, first_fit = [], None
@@ -128,13 +134,13 @@ for name in ["D1", "D2", "D3", "D4"]:
                                  objective=objective(Y, w_eff, F, L, ln)))
 
         if block:
-            # Global: the authors' package (ATT only).
+            # Global method: the package of the authors (only the ATT).
             t0 = time.time()
             att_trop = trop.TROP_TWFE_average(Y.T, D.T, treated_units, lu, lt, ln,
                                               treated_periods=k, solver="CLARABEL")
             att_rows.append(dict(dataset=name, config=cfg, method="global", reference="trop",
                                  att=att_trop, seconds=time.time() - t0))
-            # Global: diff-diff (cell effects, weights, fitted values).
+            # Global method: diff-diff (cell effects, weights, and fitted values).
             g = TROP(method="global", max_iter=MAX_ITER, tol=TOL)
             t0 = time.time()
             delta = g._compute_global_weights(Y, D, lt, lu, k, N, T)

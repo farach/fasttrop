@@ -24,50 +24,57 @@ trop_matrix(
 )
 }
 \arguments{
-\item{Y}{Numeric matrix of outcomes (units x periods). \code{NA} marks
-unobserved cells.}
+\item{Y}{A numeric matrix of outcomes with one row for each unit and one
+column for each period. \code{NA} shows a cell without an outcome.}
 
-\item{W}{Matrix of 0/1 treatment indicators with the same dimensions.}
+\item{W}{A matrix of treatment indicators with the values 0 and 1. It must
+have the same dimensions as \code{Y}.}
 
-\item{method}{\code{"local"} or \code{"global"}; see Methods.}
+\item{method}{Use \code{"local"} or \code{"global"}. Refer to the section Methods.}
 
-\item{lambda}{Optional tuning parameters as a named numeric vector or list
-with \code{time}, \code{unit}, and \code{nn}. If \code{NULL}, they are chosen by
-cross-validation over \code{grid}.}
+\item{lambda}{The tuning parameters as a named numeric vector or a named list
+with the names \code{time}, \code{unit}, and \code{nn}. If \code{lambda} is \code{NULL},
+cross-validation selects the tuning parameters from \code{grid}.}
 
-\item{grid}{Tuning grids from \code{\link[=trop_grid]{trop_grid()}}.}
+\item{grid}{The tuning grids from \code{\link[=trop_grid]{trop_grid()}}.}
 
-\item{cv_cells}{For \code{method = "local"}: number of untreated cells sampled
-for the leave-one-out criterion. \code{NULL} uses every untreated cell (Eq. 5).}
+\item{cv_cells}{For the local method, the number of untreated cells in a
+random sample for the leave-one-out criterion. If \code{cv_cells} is \code{NULL},
+the criterion uses all untreated cells, as in Eq. 5 of the paper.}
 
-\item{n_placebo, placebo_size}{For \code{method = "global"}: number of placebo
-sets and untreated units per set (defaults follow the reference package:
-200 sets of 1 unit).}
+\item{n_placebo, placebo_size}{For the global method, the number of placebo
+sets and the number of untreated units in each set. The defaults are the
+values of the Python package from the authors: 200 sets of 1 unit.}
 
-\item{max_cycles}{Maximum coordinate-search cycles.}
+\item{max_cycles}{The maximum number of cycles of the coordinate search.}
 
-\item{se}{\code{"bootstrap"} or \code{"none"}.}
+\item{se}{Use \code{"bootstrap"} for bootstrap standard errors or \code{"none"} for no
+standard errors.}
 
-\item{n_boot}{Number of bootstrap draws.}
+\item{n_boot}{The number of bootstrap draws.}
 
-\item{resample}{\code{"stratified"} or \code{"controls"}; see Inference.}
+\item{resample}{Use \code{"stratified"} or \code{"controls"}. Refer to the section
+Inference.}
 
-\item{conf_level}{Confidence level of the interval.}
+\item{conf_level}{The confidence level of the interval.}
 
-\item{ci}{\code{"normal"} (estimate plus or minus a normal quantile times the
-bootstrap standard error) or \code{"percentile"} (quantiles of the bootstrap
-draws); see Inference.}
+\item{ci}{Use \code{"normal"} or \code{"percentile"}. The normal interval is the
+estimate plus or minus a normal quantile times the bootstrap standard
+error. The percentile interval uses quantiles of the bootstrap draws. Refer
+to the section Inference.}
 
-\item{control}{Solver settings from \code{\link[=trop_control]{trop_control()}}.}
+\item{control}{The solver options from \code{\link[=trop_control]{trop_control()}}.}
 
-\item{seed}{Optional integer seed for cell sampling, placebo sets, and the
-bootstrap. The global random state is restored afterwards.}
+\item{seed}{An optional integer seed for the sampled cells, the placebo sets,
+and the bootstrap. The function does not change the state of the random
+number generator in the R session.}
 }
 \value{
-An object of class \code{trop}.
+An object of class \code{trop}. Refer to \code{\link[=trop]{trop()}}.
 }
 \description{
-Matrix interface to \code{\link[=trop]{trop()}}. Rows are units and columns are periods.
+\code{trop_matrix()} is the matrix version of \code{\link[=trop]{trop()}}. The rows are units and
+the columns are periods.
 }
 \examples{
 set.seed(1)

@@ -76,7 +76,7 @@ test_that("cells whose effects are not identified are skipped with a warning", {
     fit <- trop_matrix(Y, W, lambda = c(time = 0, unit = 0, nn = Inf), se = "none",
                        control = small_control())
   )
-  expect_true(any(grepl("skipped", warns)))
+  expect_true(any(grepl("did not use", warns)))
   expect_gt(fit$n_skipped, 0L)
   expect_true(all(is.na(fit$tau[, 4])))
 })

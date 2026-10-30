@@ -1,4 +1,10 @@
 ^data-raw$
+^tools$
+^\.github$
+^cran-comments\.md$
+^LICENSE\.md$
+^\.gitignore$
+^\.gitattributes$
 ^inst/bench/panel_.*\.csv$
 ^inst/validation/known-truth-draws-.*\.csv$
 ^.*\.Rproj$

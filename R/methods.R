@@ -1,18 +1,20 @@
 #' Methods for `trop` objects
 #'
-#' Print, summarize, and extract results from a fitted [trop()] model.
+#' These methods show the results of a [trop()] fit and get parts of the
+#' results.
 #'
 #' @param x,object A `trop` object.
-#' @param digits Number of significant digits to print.
-#' @param parm Ignored; the model has one parameter (the ATT).
-#' @param level Confidence level. Only the level used at fit time is
-#'   available, because the interval is stored with the fit.
-#' @param ... Unused.
+#' @param digits The number of significant digits to show.
+#' @param parm Not used. The model has only one parameter, the ATT.
+#' @param level The confidence level. Only the level of the fit is available,
+#'   because the fit contains the interval.
+#' @param ... Not used.
 #' @name trop-methods
-#' @return `coef()` returns the named ATT; `confint()` a 1 x 2 matrix;
-#'   `vcov()` a 1 x 1 matrix; `as.data.frame()` one row per treated cell with
-#'   its estimated effect; `print()` and `summary()` return `x` or a summary
-#'   object invisibly or for printing.
+#' @return `coef()` returns the ATT with the name `ATT`. `confint()` returns a
+#'   matrix with 1 row and 2 columns. `vcov()` returns a matrix with 1 row and 1
+#'   column. `as.data.frame()` returns a data frame with one row for each
+#'   treated cell and its effect. `print()` returns `x` invisibly, and
+#'   `summary()` returns a summary object.
 NULL
 
 #' @rdname trop-methods
@@ -23,7 +25,7 @@ print.trop <- function(x, digits = 4L, ...) {
               x$method, x$design, x$n_units, x$n_periods, x$n_treated_cells))
   cat(sprintf("  ATT: %s", format(signif(x$estimate, digits))))
   if (is.finite(x$std.error)) {
-    cat(sprintf("  (SE %s; %g%% CI %s to %s)", format(signif(x$std.error, digits)),
+    cat(sprintf("  (SE %s, %g%% CI %s to %s)", format(signif(x$std.error, digits)),
                 100 * x$conf.level, format(signif(x$conf.low, digits)),
                 format(signif(x$conf.high, digits))))
   }
@@ -47,7 +49,7 @@ print.summary.trop <- function(x, digits = 4L, ...) {
     cat(sprintf("  Tuning: %s, score %s, %d grid evaluations\n", x$cv$criterion,
                 format(signif(x$cv$score, digits)), x$cv$n_evals))
   } else {
-    cat("  Tuning: fixed by the user\n")
+    cat("  Tuning: set by the user\n")
   }
   if (!is.null(x$boot)) {
     cat(sprintf("  Bootstrap: %d draws (%s), %d failed, %s interval\n", length(x$boot$draws),
@@ -55,10 +57,10 @@ print.summary.trop <- function(x, digits = 4L, ...) {
   }
   cat(sprintf("  Treated units: %d | Skipped cells: %d | Non-converged fits: %d\n",
               x$n_treated_units, x$n_skipped, x$n_nonconverged))
-  cat(sprintf("  Time: %.3f s total, %.3f s in the native kernel (%d threads)\n",
+  cat(sprintf("  Time: %.3f s in total, %.3f s in the C code (%d threads)\n",
               x$timing$total_seconds, x$timing$kernel_seconds, x$control$threads))
   if (x$design != "block") {
-    cat("  Note: Theorem 5.1 (triple robustness) is proven for block assignment only.\n")
+    cat("  Note: Theorem 5.1 (triple robustness) has a proof only for a block design.\n")
   }
   invisible(x)
 }
@@ -71,7 +73,7 @@ coef.trop <- function(object, ...) c(ATT = object$estimate)
 #' @export
 confint.trop <- function(object, parm, level = object$conf.level, ...) {
   if (!isTRUE(all.equal(level, object$conf.level))) {
-    stop("Only the bootstrap interval at the fitted `conf_level` is available; refit to change it.",
+    stop("Only the interval at the `conf_level` of the fit is available. To change the level, calculate the fit again.",
          call. = FALSE)
   }
   a <- (1 - level) / 2
@@ -84,7 +86,7 @@ confint.trop <- function(object, parm, level = object$conf.level, ...) {
 vcov.trop <- function(object, ...) matrix(object$std.error^2, 1L, 1L, dimnames = list("ATT", "ATT"))
 
 #' @rdname trop-methods
-#' @param row.names,optional Ignored.
+#' @param row.names,optional Not used.
 #' @export
 as.data.frame.trop <- function(x, row.names = NULL, optional = FALSE, ...) {
   idx <- which(!is.na(x$tau), arr.ind = TRUE)

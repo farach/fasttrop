@@ -1,4 +1,4 @@
-# Council condition C2: tuning and inference correctness.
+# Condition C2 of the council: correct tuning and inference.
 
 test_that("leave-one-out CV holds each cell out of its own fit and its own distances", {
   p <- small_panel(seed = 13, n_units = 10, n_periods = 8, n_treated = 3, n_post = 2)
@@ -8,7 +8,8 @@ test_that("leave-one-out CV holds each cell out of its own fit and its own dista
   pool <- which(inp$W == 0L) - 1L
   cells <- as.integer(sort(pool[c(3, 17, 29, 40, 52)]))
   kernel <- .Call(fasttrop:::C_local_loocv, inp$Y, inp$W, inp$obs, l, cells, unclass(ctl))
-  # Reference: mark each held-out cell as treated and estimate its effect.
+  # Reference: set the treatment indicator of each cell of the criterion to 1,
+  # and estimate the effect of the cell.
   manual <- vapply(cells, function(c0) {
     i <- c0 %% nrow(inp$Y) + 1L
     t <- c0 %/% nrow(inp$Y) + 1L
@@ -63,7 +64,8 @@ test_that("the global search reaches a fixed point of the coordinate cycle", {
   expect_equal(fit$cv$n_sets, 20L)
   tr <- fit$cv$trace
   b <- fit$lambda
-  # At a fixed point no single coordinate change on the grid improves the score.
+  # At a fixed point, no single change of one coordinate on the grid gives a
+  # better score.
   axis_scores <- function(axis, v) {
     pt <- b
     pt[[axis]] <- v

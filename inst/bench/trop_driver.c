@@ -1,12 +1,12 @@
 /*
- * Standalone C driver for the fasttrop parity benchmark.
+ * C program for the fasttrop benchmark.
  *
- * It compiles the package core (src/trop_core.c) into this translation unit
- * and runs the same sequence of native calls as trop_run() in R: tuning
- * search, point estimate, and bootstrap. Build it with R's compiler and
- * flags, together with src/trop_os.c, and link R's own BLAS/LAPACK (see
- * run_benchmark.R) so the only difference from the R path is the R entry
- * layer.
+ * The program contains the C core of the package (src/trop_core.c). It runs
+ * the same sequence of C calculations as trop_run() in R: the tuning search,
+ * the estimate, and the bootstrap. The script run_benchmark.R compiles it with
+ * the compiler and flags of R, together with src/trop_os.c. The script also
+ * links the BLAS and LAPACK of R. Thus, the only difference from the R path is
+ * the R code.
  *
  * Usage: trop_driver <plan.bin> <reps> <result.bin>
  */
@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
   double best[3] = { lam[0], lam[1], lam[2] }, score = NAN, att = NAN;
   double t_best = INFINITY, s_best = 0, e_best = 0, b_best = 0;
 
-  /* Same thread power-throttling policy as the R entry points. */
+  /* Use the same power throttling policy as the R functions. */
   trop_qos_enter(&o);
   for (int r = 0; r < reps; r++) {
     double t0 = trop_wtime();
