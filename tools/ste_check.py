@@ -26,6 +26,11 @@ Usage, in the package folder:
     python tools/ste_check.py            # the package documentation
     python tools/ste_check.py FILE ...   # other files
 The exit status is 1 if the script finds an error.
+
+The script reads Markdown and R Markdown files, the roxygen comments in R
+files, the comments in C files, the Description field of DESCRIPTION, and the
+desc and description fields of _pkgdown.yml. It does not read code chunks,
+inline code, YAML front matter, or HTML tags.
 """
 import re
 import sys
@@ -35,6 +40,8 @@ DEFAULT_FILES = [
     "README.md", "NEWS.md", "cran-comments.md", "DESCRIPTION",
     "inst/bench/README.md", "inst/validation/README.md",
     "R/*.R", "src/trop_core.h",
+    "pkgdown/index.md", "vignettes/*.Rmd", "vignettes/articles/*.Rmd",
+    "_pkgdown.yml",
 ]
 
 # Words that end in "-ing" and that are not verb forms, or that are
@@ -42,7 +49,8 @@ DEFAULT_FILES = [
 ING_OK = {
     "during", "nothing", "something", "anything", "everything", "thing",
     "things", "string", "strings", "bring", "king", "ring", "spring", "tuning",
-    "throttling", "programming",
+    "throttling", "programming", "setting", "settings", "warning", "warnings",
+    "meaning", "loading", "loadings", "operating", "incoming",
 }
 NOT_APPROVED = {
     "ensure", "ensures", "ensured", "utilize", "utilizes", "utilized",
@@ -81,17 +89,22 @@ IMPERATIVES = {
     "update", "refer", "give", "find", "call", "copy", "clone",
 }
 ABBREV = ["Eq.", "Eqs.", "Fig.", "No.", "et al.", "vs.", "St."]
-SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9`\"'(\[])")
+# A sentence starts with a capital letter, a digit, a quote, a bracket, code,
+# or the package name, which is in lowercase.
+SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9`\"'(\[]|fasttrop\b)")
 
 
 def md_blocks(text):
     """Give the prose paragraphs of a Markdown file."""
     text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
     text = re.sub(r"```.*?```", "\n\n", text, flags=re.S)
+    text = re.sub(r"<[^<>\n]+>", " ", text)  # HTML tags, but not their text
     blocks, cur = [], []
     for line in text.splitlines():
         s = line.strip()
-        if not s or s.startswith("#") or s.startswith("|") or s.startswith("[!["):
+        s = re.sub(r"^>\s?", "", s)  # block quotes
+        if (not s or s.startswith("#") or s.startswith("|") or s.startswith("[![")
+                or s.startswith(":::")):
             if cur:
                 blocks.append(" ".join(cur))
                 cur = []
@@ -100,6 +113,11 @@ def md_blocks(text):
             if cur:
                 blocks.append(" ".join(cur))
             cur = [re.sub(r"^([-*+]|\d+\.)\s+", "", s)]
+            continue
+        if re.match(r"^:\s+", s):  # a definition in a definition list
+            if cur:
+                blocks.append(" ".join(cur))
+            cur = [re.sub(r"^:\s+", "", s)]
             continue
         cur.append(s)
     if cur:
@@ -160,6 +178,34 @@ def roxygen_blocks(text):
 def description_blocks(text):
     m = re.search(r"^Description:(.*?)(?=^\S)", text, flags=re.S | re.M)
     return [" ".join(m.group(1).split())] if m else []
+
+
+def rmd_blocks(text):
+    """Give the prose paragraphs of an R Markdown file."""
+    text = re.sub(r"\A---\s*\n.*?\n---\s*\n", "\n", text, flags=re.S)  # YAML header
+    return md_blocks(text)
+
+
+def yaml_blocks(text):
+    """Give the desc and description values of a YAML file, such as _pkgdown.yml."""
+    blocks = []
+    lines = text.splitlines()
+    for k, line in enumerate(lines):
+        m = re.match(r"^(\s*)(?:-\s+)?(desc|description):\s*(.*)$", line)
+        if not m:
+            continue
+        indent, value = len(m.group(1)), m.group(3).strip()
+        if value in {">", ">-", "|", "|-"}:
+            parts = []
+            for nxt in lines[k + 1:]:
+                if nxt.strip() and len(nxt) - len(nxt.lstrip()) <= indent:
+                    break
+                parts.append(nxt.strip())
+            value = " ".join(p for p in parts if p)
+        value = value.strip("\"'")
+        if value:
+            blocks.append(value)
+    return blocks
 
 
 def c_comment_blocks(text):
@@ -257,6 +303,10 @@ def blocks_for(path):
     name = Path(path).name
     if name.endswith(".md"):
         return md_blocks(text)
+    if name.endswith((".Rmd", ".qmd")):
+        return rmd_blocks(text)
+    if name.endswith((".yml", ".yaml")):
+        return yaml_blocks(text)
     if name == "DESCRIPTION":
         return description_blocks(text)
     if name.endswith(".R"):
