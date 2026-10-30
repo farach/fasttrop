@@ -1,0 +1,205 @@
+# fasttrop
+
+Estimate the effect of a policy or other treatment in panel data with
+the Triply Robust Panel (TROP) estimator. The model fits run in C, so
+the results come fast.
+
+New here? [TROP in plain
+words](https://farach.github.io/fasttrop/articles/the-big-idea.md) What
+the method does and why its authors made it.
+
+Ready to try it? [Get
+started](https://farach.github.io/fasttrop/articles/fasttrop.md) Install
+the package and make your first estimate.
+
+Want the evidence? [How we checked
+fasttrop](https://farach.github.io/fasttrop/articles/validation.md)
+Agreement with other packages, tests, and simulations.
+
+## What fasttrop does
+
+Some units get a treatment, for example a new law, and other units do
+not. fasttrop estimates how the treatment changed an outcome of the
+treated units. For each treated unit and period, it calculates the
+outcome without the treatment from the untreated data. Three ideas
+control this calculation:
+
+- Units with a similar history get more weight.
+- Periods near the treated period get more weight.
+- A model finds patterns that all units share over time.
+
+The data select how much each idea counts. fasttrop then averages the
+effects of all treated cells. This average is the average treatment
+effect on the treated (ATT). The standard error and the confidence
+interval show how uncertain the estimate is.
+
+**Fast** In our benchmarks with one thread and fixed tuning parameters,
+fasttrop was 25 to 174 times faster than the Python packages. Times
+depend on the computer.
+
+**Checked** On four test panels, the local ATTs of fasttrop and
+`diff-diff` differed by at most 4e-8. The gap to the authors’ package is
+up to 2.5e-5, the same as the gap between the two Python packages.
+
+**Three designs** The local method can calculate results for block,
+staggered, and general designs. The triple robustness proof is only for
+a block design.
+
+## Know the limits
+
+- The triple robustness result has a proof only for a block design.
+- The bootstrap interval is reliable only with many treated units.
+  fasttrop gives a warning message below five treated units.
+- The global method works only for a block design.
+- The package cannot use covariates.
+- In our simulation with larger trends for the treated units, TROP
+  reduced the bias, but some bias stayed.
+- fasttrop follows arXiv version 3 of the paper. A line-by-line check
+  against the journal version is not complete.
+
+The article [What TROP can and cannot
+do](https://farach.github.io/fasttrop/articles/limits.md) explains each
+limit.
+
+## Install the package
+
+fasttrop is not on CRAN at this time. To install the package from
+GitHub, do these steps:
+
+1.  Make sure that you have a C compiler. On Windows, Rtools has the
+    compiler.
+2.  If you do not have the `remotes` package, install it.
+3.  Run this R code:
+
+``` r
+
+remotes::install_github("farach/fasttrop")
+```
+
+## A first example
+
+``` r
+
+library(fasttrop)
+
+# A practice panel: 8 of 40 units get the treatment in the last 5 periods.
+panel <- trop_simulate(n_units = 40, n_periods = 20, n_treated = 8, n_post = 5,
+                       seed = 1)
+
+fit <- trop(panel, outcome = "y", treatment = "d", unit = "unit", time = "time",
+            cv_cells = 200, n_boot = 200, seed = 1)
+summary(fit)
+```
+
+The article [Get
+started](https://farach.github.io/fasttrop/articles/fasttrop.md)
+explains each step and the output.
+
+## Who made what
+
+The TROP method is from Susan Athey, Guido Imbens, Zhaonan Qu, and
+Davide Viviano (2026). fasttrop is an independent R package by Alex
+Farach. The authors of the method did not write this package. If you use
+fasttrop, cite the paper. The [citation
+page](https://farach.github.io/fasttrop/authors.html#citation) gives the
+references.
+
+# Package index
+
+## Estimate effects
+
+Calculate the TROP estimate for a data frame or for matrices.
+
+- [`trop()`](https://farach.github.io/fasttrop/reference/trop.md) :
+  Triply Robust Panel (TROP) estimator
+- [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  : TROP estimator for outcome and treatment matrices
+
+## Read the results
+
+Show a fit and get its parts.
+
+- [`print(`*`<trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  [`summary(`*`<trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  [`print(`*`<summary.trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  [`coef(`*`<trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  [`confint(`*`<trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  [`vcov(`*`<trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  [`as.data.frame(`*`<trop>`*`)`](https://farach.github.io/fasttrop/reference/trop-methods.md)
+  :
+
+  Methods for `trop` objects
+
+## Settings
+
+Set the solver options, the tuning grids, and the number of threads.
+
+- [`trop_control()`](https://farach.github.io/fasttrop/reference/trop_control.md)
+  : Solver options
+- [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md)
+  : Tuning grids
+- [`trop_threads()`](https://farach.github.io/fasttrop/reference/trop_threads.md)
+  : Default number of threads
+
+## Practice data
+
+Make a panel with a known effect.
+
+- [`trop_simulate()`](https://farach.github.io/fasttrop/reference/trop_simulate.md)
+  : Simulated panel with a factor structure
+
+# Articles
+
+## Start here
+
+Learn the idea of TROP and make your first estimate.
+
+- [TROP in plain
+  words](https://farach.github.io/fasttrop/articles/the-big-idea.md):
+
+  What the Triply Robust Panel estimator does, why its authors made it,
+  and what “triply robust” means.
+
+- [Get started with
+  fasttrop](https://farach.github.io/fasttrop/articles/fasttrop.md):
+
+## Use fasttrop
+
+Read the results of a fit and know the limits of the method.
+
+- [How to read your
+  results](https://farach.github.io/fasttrop/articles/read-your-results.md):
+
+  What each number in the output of fasttrop means, and what to do when
+  fasttrop gives a warning message.
+
+- [What TROP can and cannot
+  do](https://farach.github.io/fasttrop/articles/limits.md):
+
+  The limits of the method and of this package in plain words, and good
+  practice for an analysis.
+
+## The evidence
+
+See how we checked the results and the speed of the package.
+
+- [How we checked
+  fasttrop](https://farach.github.io/fasttrop/articles/validation.md):
+
+  The comparisons with other implementations, the tests of the tuning
+  and the bootstrap, and the simulations with a known effect.
+
+- [How fast is
+  fasttrop?](https://farach.github.io/fasttrop/articles/speed.md):
+
+  Why speed matters for TROP, what makes fasttrop fast, and how to make
+  your own runs faster.
+
+## Words
+
+Find the meaning of the words that the articles use.
+
+- [Glossary](https://farach.github.io/fasttrop/articles/glossary.md):
+
+  The meaning of the words that the fasttrop website uses, in plain
+  words.

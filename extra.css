@@ -1,0 +1,340 @@
+/* Styles for the fasttrop website: reading comfort, the home page cards,
+   the key point and limit boxes, and the figures. Each color pair passes
+   WCAG AA contrast in the light theme and in the dark theme. The boxes use
+   soft tints and a small label. They do not use thick side borders. */
+
+:root {
+  --ft-teal: #0B6E79;
+  --ft-teal-strong: #0B4F5C;
+  --ft-coral: #E4572E;
+  --ft-coral-text: #B23A16;
+  --ft-muted: #55636A;
+  --ft-card: #FFFFFF;
+  --ft-border: #E3DCCF;
+  --ft-code-bg: #F1ECE3;
+  /* The a11y-light colors for code need a white background for 4.5:1. */
+  --ft-code-bg-block: #FFFFFF;
+  --ft-keypoints-bg: #E6F2F1;
+  --ft-limit-bg: #FBE9E2;
+  --ft-shadow: 0 10px 28px rgba(30, 42, 50, 0.08);
+}
+
+[data-bs-theme="dark"] {
+  --ft-teal: #78D3DA;
+  --ft-teal-strong: #A9E6EA;
+  --ft-coral: #F4A58A;
+  --ft-coral-text: #F4A58A;
+  --ft-muted: #A7B4B9;
+  --ft-card: #182125;
+  --ft-border: #2A3539;
+  --ft-code-bg: #1B2428;
+  --ft-code-bg-block: #1B2428;
+  --ft-keypoints-bg: #15302F;
+  --ft-limit-bg: #3A2620;
+  --ft-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* Reading width and rhythm --------------------------------------------- */
+
+main p,
+main li,
+main dd,
+main blockquote {
+  max-width: 70ch;
+}
+
+main h2 {
+  margin-top: 2.75rem;
+  margin-bottom: 0.9rem;
+}
+
+main h3 {
+  margin-top: 2rem;
+}
+
+main h1,
+main h2,
+main h3 {
+  letter-spacing: -0.01em;
+  font-optical-sizing: auto;
+}
+
+.page-header h1 {
+  font-size: clamp(2rem, 1.4rem + 2vw, 2.75rem);
+  line-height: 1.15;
+}
+
+main a {
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 0.08em;
+}
+
+main a:hover {
+  text-decoration-thickness: 0.14em;
+}
+
+/* Navigation ---------------------------------------------------------- */
+
+.navbar {
+  border-bottom: 1px solid var(--ft-border);
+  --bs-navbar-color: #3D4A52;
+  --bs-navbar-hover-color: #0B4F5C;
+  --bs-navbar-active-color: #1E2A32;
+}
+
+[data-bs-theme="dark"] .navbar {
+  --bs-navbar-color: #C9D3D7;
+  --bs-navbar-hover-color: #A9E6EA;
+  --bs-navbar-active-color: #F1F5F6;
+}
+
+.navbar .navbar-brand {
+  font-weight: 700;
+}
+
+/* Visible keyboard focus everywhere. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+.dropdown-item:focus-visible {
+  outline: 3px solid var(--ft-coral);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+/* Code ---------------------------------------------------------------- */
+
+pre {
+  background-color: var(--ft-code-bg-block);
+  border: 1px solid var(--ft-border);
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+}
+
+:not(pre) > code {
+  background-color: var(--ft-code-bg);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.3em;
+}
+
+/* Plain code blocks without highlighting, such as the BibTeX entries. */
+[data-bs-theme="dark"] pre {
+  color: #E4EAEC;
+}
+
+a > code {
+  color: inherit;
+}
+
+/* Home page ----------------------------------------------------------- */
+
+.template-home .page-header {
+  border-bottom: 0;
+  margin-bottom: 0.5rem;
+}
+
+.template-home .page-header h1 {
+  font-size: clamp(2.4rem, 1.6rem + 3vw, 3.4rem);
+}
+
+.hero-lead {
+  font-size: 1.3rem;
+  line-height: 1.55;
+  max-width: 34em;
+  margin-bottom: 1.5rem;
+}
+
+.start-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1.75rem 0 2.5rem;
+}
+
+.start-card {
+  position: relative;
+  background-color: var(--ft-card);
+  border: 1px solid var(--ft-border);
+  border-radius: 0.9rem;
+  padding: 1.1rem 1.25rem 1.2rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.start-card:hover,
+.start-card:focus-within {
+  transform: translateY(-2px);
+  border-color: var(--ft-teal);
+  box-shadow: var(--ft-shadow);
+}
+
+.start-card p {
+  margin-bottom: 0.4rem;
+  max-width: none;
+}
+
+.start-card .kicker {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ft-coral-text);
+}
+
+.start-card a {
+  font-family: var(--bs-heading-font-family, inherit);
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.start-card .card-text {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--ft-muted);
+}
+
+.fact-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem 1.5rem;
+  margin: 1rem 0 2rem;
+}
+
+.fact-list p {
+  margin: 0;
+  max-width: none;
+}
+
+.fact-list strong {
+  display: block;
+  font-family: var(--bs-heading-font-family, inherit);
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ft-teal-strong);
+}
+
+/* Boxes for key points, limits, and notes ----------------------------- */
+
+.key-points,
+.limit-box,
+.note-box {
+  border: 1px solid var(--ft-border);
+  border-radius: 0.9rem;
+  padding: 1rem 1.25rem 0.4rem;
+  margin: 1.5rem 0 2rem;
+  max-width: 76ch;
+}
+
+.key-points {
+  background-color: var(--ft-keypoints-bg);
+  border-color: transparent;
+}
+
+.limit-box {
+  background-color: var(--ft-limit-bg);
+  border-color: transparent;
+}
+
+.note-box {
+  background-color: var(--ft-card);
+}
+
+/* The first paragraph of a box is its label. */
+.key-points > p:first-child,
+.limit-box > p:first-child,
+.note-box > p:first-child {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  color: var(--ft-teal-strong);
+}
+
+.limit-box > p:first-child {
+  color: var(--ft-coral-text);
+}
+
+.note-box > p:first-child {
+  color: var(--ft-muted);
+}
+
+.key-points ul,
+.limit-box ul,
+.note-box ul {
+  padding-left: 1.2rem;
+}
+
+/* Figures and tables -------------------------------------------------- */
+
+main img.r-plt,
+main .figure img {
+  border-radius: 0.6rem;
+}
+
+/* pkgdown inverts the colors of plots in dark mode. The charts of this site
+   use color for meaning (coral is treated, darker is more weight), so the
+   dark theme shows each chart on a light panel with its true colors. */
+[data-bs-theme="dark"] img.r-plt,
+[data-bs-theme="dark"] pre .r-plt.img img {
+  filter: none;
+  background-color: #FBF8F3;
+  padding: 0.5rem;
+}
+
+main .figure,
+main figure {
+  margin: 1.5rem 0 2rem;
+}
+
+main p.caption,
+main figcaption {
+  color: var(--ft-muted);
+  font-size: 0.95rem;
+}
+
+main table {
+  font-size: 0.95rem;
+}
+
+@media (max-width: 576px) {
+  main table {
+    font-size: 0.85rem;
+  }
+}
+
+main .table > :not(caption) > * > * {
+  padding: 0.45rem 0.6rem;
+}
+
+.glossary dt {
+  font-family: var(--bs-heading-font-family, inherit);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+
+.glossary dd {
+  margin-left: 0;
+}
+
+/* On narrow screens, pkgdown sizes the sidebar with 100vw. That width
+   includes a desktop scrollbar, so the page can scroll sideways. */
+@media (max-width: 767.98px) {
+  .row > aside {
+    width: calc(100% - 1rem);
+  }
+}
+
+/* Respect a request for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .start-card {
+    transition: none;
+  }
+  .start-card:hover,
+  .start-card:focus-within {
+    transform: none;
+  }
+}
