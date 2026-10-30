@@ -1,0 +1,109 @@
+# Agreement with the reference implementations for fixed tuning parameters.
+# The file fixtures/oracle_meta.json gives the commits. The script
+# data-raw/oracle_fixtures.py made the reference results on the panels from
+# data-raw/make_fixtures.R.
+#
+# Tolerances: diff-diff uses a tolerance of 1e-9 and fasttrop uses 1e-10.
+# Thus, the ATTs and the cell effects must agree to 1e-6. The package of the
+# authors uses a conic solver (CLARABEL) for the global method. This solver is
+# less accurate. Thus, its ATTs must agree to 1e-4.
+
+oracle <- function() utils::read.csv(test_path("fixtures", "oracle.csv"))
+
+test_that("local ATTs match diff-diff on every fixture and configuration", {
+  ref <- oracle()
+  ref <- ref[ref$method == "local", ]
+  lam <- fixture_lambdas()
+  for (k in seq_len(nrow(ref))) {
+    fx <- read_fixture(ref$dataset[k])
+    l <- lambda_of(lam[lam$config == ref$config[k], ])
+    fit <- suppressWarnings(trop_matrix(fx$Y, fx$W, method = "local", lambda = l, se = "none",
+                                        control = tight_control()))
+    expect_max_abs_diff(fit$estimate, ref$att[k], 1e-6,
+                        label = paste(ref$dataset[k], ref$config[k], "local ATT"))
+  }
+})
+
+test_that("local cell effects match diff-diff cell by cell", {
+  ref <- utils::read.csv(test_path("fixtures", "oracle_cells.csv"))
+  ref <- ref[ref$method == "local", ]
+  lam <- fixture_lambdas()
+  for (key in unique(paste(ref$dataset, ref$config))) {
+    r <- ref[paste(ref$dataset, ref$config) == key, ]
+    fx <- read_fixture(r$dataset[1])
+    fit <- suppressWarnings(trop(fx$data, "y", "d", "unit", "time", method = "local",
+                                 lambda = lambda_of(lam[lam$config == r$config[1], ]),
+                                 se = "none", control = tight_control()))
+    got <- as.data.frame(fit)
+    m <- merge(r, got, by = c("unit", "time"), suffixes = c(".ref", ".fit"))
+    expect_equal(nrow(m), nrow(r), label = paste(key, "matched cells"))
+    expect_equal(nrow(got), nrow(r), label = paste(key, "estimated cells"))
+    expect_max_abs_diff(m$tau.fit, m$tau.ref, 1e-6, label = paste(key, "tau"))
+  }
+})
+
+test_that("global ATTs match the authors' package and diff-diff", {
+  ref <- oracle()
+  ref <- ref[ref$method == "global", ]
+  lam <- fixture_lambdas()
+  for (k in seq_len(nrow(ref))) {
+    fx <- read_fixture(ref$dataset[k])
+    l <- lambda_of(lam[lam$config == ref$config[k], ])
+    fit <- suppressWarnings(trop_matrix(fx$Y, fx$W, method = "global", lambda = l, se = "none",
+                                        control = tight_control()))
+    tol <- if (ref$reference[k] == "trop") 1e-4 else 1e-6
+    expect_max_abs_diff(fit$estimate, ref$att[k], tol,
+                        label = paste(ref$dataset[k], ref$config[k], "global ATT vs",
+                                      ref$reference[k]))
+  }
+})
+
+test_that("global cell effects match diff-diff cell by cell", {
+  ref <- utils::read.csv(test_path("fixtures", "oracle_cells.csv"))
+  ref <- ref[ref$method == "global", ]
+  lam <- fixture_lambdas()
+  for (key in unique(paste(ref$dataset, ref$config))) {
+    r <- ref[paste(ref$dataset, ref$config) == key, ]
+    fx <- read_fixture(r$dataset[1])
+    fit <- suppressWarnings(trop(fx$data, "y", "d", "unit", "time", method = "global",
+                                 lambda = lambda_of(lam[lam$config == r$config[1], ]),
+                                 se = "none", control = tight_control()))
+    m <- merge(r, as.data.frame(fit), by = c("unit", "time"), suffixes = c(".ref", ".fit"))
+    expect_equal(nrow(m), nrow(r), label = paste(key, "matched cells"))
+    expect_max_abs_diff(m$tau.fit, m$tau.ref, 1e-6, label = paste(key, "tau"))
+  }
+})
+
+test_that("the solver reaches the reference objective on identical weights", {
+  sol <- utils::read.csv(test_path("fixtures", "oracle_solver.csv"))
+  obj <- utils::read.csv(test_path("fixtures", "oracle_objective.csv"))
+  for (k in seq_len(nrow(obj))) {
+    o <- obj[k, ]
+    s <- sol[sol$dataset == o$dataset & sol$config == o$config & sol$method == o$method, ]
+    fx <- read_fixture(o$dataset)
+    units <- as.integer(rownames(fx$Y))
+    times <- as.integer(colnames(fx$Y))
+    idx <- cbind(match(s$unit, units), match(s$time, times))
+    w <- matrix(0, nrow(fx$Y), ncol(fx$Y))
+    w[idx] <- s$w
+    ref_fitted <- matrix(NA_real_, nrow(fx$Y), ncol(fx$Y))
+    ref_fitted[idx] <- s$fitted
+    Y <- unname(fx$Y)
+    fit <- fasttrop:::trop_fit_weighted(Y, w, o$lambda_nn, tight_control())
+    fitted <- outer(fit$alpha, rep(1, ncol(Y))) + outer(rep(1, nrow(Y)), fit$beta) + fit$L
+    value <- sum(w * (Y - fitted)^2) + o$lambda_nn * sum(svd(fit$L)$d)
+    label <- paste(o$dataset, o$config, o$method)
+    # The value is not higher than the reference value. It is equal to the
+    # reference value in the limits of the solver tolerance.
+    expect_lte(value, o$objective * (1 + 1e-9) + 1e-12, label = paste(label, "objective"))
+    expect_equal(value, o$objective, tolerance = 1e-7, label = paste(label, "objective"))
+    on <- w > 0
+    expect_max_abs_diff(fitted[on], ref_fitted[on], 1e-5,
+                        label = paste(label, "fitted values on weighted cells"))
+    if (o$method == "local") {
+      target <- cbind(match(o$target_unit, units), match(o$target_time, times))
+      expect_max_abs_diff(fitted[target], ref_fitted[target], 1e-5,
+                          label = paste(label, "counterfactual at the target cell"))
+    }
+  }
+})

@@ -1,0 +1,20 @@
+bibentry(
+  bibtype = "Article",
+  header = "To cite the TROP method, use:",
+  title = "Triply Robust Panel Estimators",
+  author = c(person("Susan", "Athey"), person(c("Guido", "W."), "Imbens"),
+             person("Zhaonan", "Qu"), person("Davide", "Viviano")),
+  journal = "Journal of Applied Econometrics",
+  year = "2026",
+  doi = "10.1002/jae.70061"
+)
+
+bibentry(
+  bibtype = "Manual",
+  header = "To cite the fasttrop package, use:",
+  title = "fasttrop: Fast Triply Robust Panel Estimators",
+  author = person("Alex", "Farach"),
+  year = "2026",
+  note = sprintf("R package version %s", meta$Version),
+  url = "https://farach.github.io/fasttrop/"
+)

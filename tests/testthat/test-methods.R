@@ -1,0 +1,32 @@
+test_that("S3 methods return consistent pieces of the fit", {
+  p <- small_panel(seed = 37)
+  fit <- trop(p$data, "y", "d", "unit", "time", lambda = c(time = 0.2, unit = 0.5, nn = 0.5),
+              n_boot = 20, seed = 1, control = small_control())
+  expect_s3_class(fit, "trop")
+  expect_named(coef(fit), "ATT")
+  expect_equal(unname(coef(fit)), fit$estimate)
+  ci <- confint(fit)
+  expect_equal(dim(ci), c(1L, 2L))
+  expect_equal(unname(ci[1, ]), c(fit$conf.low, fit$conf.high))
+  expect_error(confint(fit, level = 0.9), "calculate the fit again")
+  expect_equal(vcov(fit)[1, 1], fit$std.error^2)
+  cells <- as.data.frame(fit)
+  expect_named(cells, c("unit", "time", "tau"))
+  expect_equal(nrow(cells), fit$n_treated_cells)
+  expect_equal(mean(cells$tau), fit$estimate)
+  expect_true(all(cells$unit %in% p$data$unit[p$data$d == 1]))
+  expect_output(print(fit), "TROP")
+  expect_output(print(fit), "lambda: time = 0.2, unit = 0.5, nn = 0.5")
+  expect_output(print(summary(fit)), "Bootstrap: 20 draws \\(stratified\\), 0 failed, normal interval")
+  expect_output(print(summary(fit)), "Tuning: set by the user")
+  expect_lte(fit$timing$kernel_seconds, fit$timing$total_seconds)
+})
+
+test_that("summary notes the scope of the robustness result for non-block designs", {
+  st <- small_panel(seed = 8, design = "staggered", n_post = 4)
+  fit <- suppressWarnings(trop_matrix(st$Y, st$W, lambda = c(time = 0, unit = 0, nn = Inf),
+                                      se = "none", control = small_control()))
+  expect_output(print(summary(fit)), "proof only for a block design")
+  expect_true(is.na(fit$std.error))
+  expect_output(print(fit), "ATT")
+})

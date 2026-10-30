@@ -1,0 +1,158 @@
+---
+title: "What TROP can and cannot do"
+description: >
+  The limits of the method and of this package in plain words, and good
+  practice for an analysis.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+source("_setup.R")
+```
+
+::: {.key-points}
+Key points
+
+- The authors suggest TROP or synthetic difference in differences as a simple
+  choice for panel data. No method works for every data set.
+- The triple robustness result has a proof only for a block design.
+- The bootstrap interval is reliable only with many treated units.
+- In our simulation with larger trends for the treated units, TROP reduced the
+  bias, but some bias stayed.
+- fasttrop cannot use covariates.
+:::
+
+## What TROP can do
+
+- Estimate the average treatment effect on the treated (ATT) for block,
+  staggered, and general designs, with the local method.
+- Use panels in which some outcomes are not in the data. The fits do not use
+  these cells.
+- Adapt to the data. Cross-validation uses the data to set the tuning
+  parameters. They control the unit weights, the time weights, and the
+  low-rank term.
+- Give a standard error and a confidence interval with a unit bootstrap.
+
+## The limits of the method
+
+### The triple robustness result has a proof only for a block design
+
+The paper gives a limit on the bias of TROP (Theorem 5.1). This limit is the
+reason for the name "triply robust". The proof is only for a block design, in
+which all treated units start the treatment in the same period and stay
+treated.
+
+fasttrop also calculates estimates for staggered and general designs, but it
+gives a warning message. For these designs, the estimate is available, but
+the triple robustness result has no proof. The proof also uses fixed weights,
+and TROP selects its weights from the data.
+
+### The bootstrap interval is reliable only with many treated units
+
+The paper says that its bootstrap is correct only with many treated units.
+fasttrop gives a warning message for a panel with fewer than five treated
+units. Five or more treated units do not make the interval reliable. With one
+or two treated units, for example one state with a new law, the interval can
+be wrong.
+
+In our simulation A, a random draw selected 10 treated units. The normal
+intervals of TROP had a coverage of 92.5% to 94%, near the target of 95%. In
+simulation B, the selection used the trend of the units. There, the same
+intervals had a coverage of only 47.5% to 70%.
+
+fasttrop also keeps the tuning parameters fixed in the bootstrap. Thus, the
+interval does not include the variation that comes from the selection of the
+tuning parameters.
+
+### Different trends can leave some bias
+
+TROP calculates the outcomes without the treatment from the untreated cells.
+In our simulation B, the selection favored units with larger trends. TROP
+reduced the bias, but some bias stayed. This result gives no general rule
+about which weights can remove a bias. Under the assumptions of the paper, a
+model without bias can also remove it.
+
+In simulation A, a random draw selects the treated units. In simulation B, the
+selection favors the units with the largest trends. The true effect is 1 in
+both simulations.
+
+```{r bias-fig, fig.asp = 0.5, fig.cap = "Bias of three estimators, with 200 simulated panels in each simulation. In simulation A, a random draw selects the treated units. In simulation B, the selection favors the units with the largest trends. The bars show two Monte Carlo standard errors.", fig.alt = "A dot chart in two panels. In simulation A, the bias is -0.10 for TWFE, -0.04 for TROP local, and -0.03 for TROP global. In simulation B, the bias is 1.20 for TWFE, 0.64 for TROP local, and 0.37 for TROP global."}
+read_summary <- function(design) {
+  utils::read.csv(system.file("validation", sprintf("known-truth-summary-%s.csv", design),
+                              package = "fasttrop"))
+}
+sims <- rbind(read_summary("A"), read_summary("B"))
+sims$method <- factor(sims$method, levels = c("global", "local", "twfe"),
+                      labels = c("TROP global", "TROP local", "TWFE"))
+sims$simulation <- factor(sims$design, levels = c("A", "B"),
+                          labels = c("A: random selection", "B: selection on the trend"))
+sims$is_trop <- sims$method != "TWFE"
+
+ggplot(sims, aes(bias, method, colour = is_trop)) +
+  geom_vline(xintercept = 0, colour = ft_col[["muted"]], linewidth = 0.5) +
+  geom_errorbarh(aes(xmin = bias - 2 * mc_se_bias, xmax = bias + 2 * mc_se_bias),
+                 height = 0.25, linewidth = 0.7) +
+  geom_point(size = 3.6) +
+  geom_text(aes(x = bias + 2 * mc_se_bias + 0.05, label = sprintf("%.2f", bias)),
+            hjust = 0, size = 3.8, show.legend = FALSE) +
+  facet_wrap(~simulation, nrow = 1) +
+  scale_colour_manual(values = c(`TRUE` = ft_col[["teal"]], `FALSE` = ft_col[["coral"]]),
+                      guide = "none") +
+  scale_x_continuous(breaks = c(0, 0.5, 1), expand = expansion(add = c(0.05, 0.3))) +
+  labs(x = "Bias (the true effect is 1)", y = NULL) +
+  theme(panel.grid.major.y = element_blank(), panel.spacing = unit(2, "lines"))
+```
+
+In simulation A, each bias is small, and each one is less than three Monte
+Carlo standard errors from zero. In simulation B, TWFE has a large bias. TROP
+removes approximately half of this bias with the local method and two thirds
+with the global method, but some bias stays. The intervals in simulation B
+also have a coverage below 95%. The article
+[How we checked fasttrop](validation.html) shows the saved results for TWFE
+and the two TROP methods.
+
+### General designs assume no carryover
+
+In a general design, the treatment stops for some units. The estimator then
+uses the cells after the treatment as untreated cells. This is correct only if
+the treatment has no effect after it stops. The estimator also assumes that
+the effect does not change with the earlier treatment periods. fasttrop gives
+a warning message for a general design.
+
+### Assumptions in the paper
+
+The paper assumes no spillovers and no dynamic effects. TROP uses the cells of
+the treated units before the treatment as untreated cells. Thus, the treatment
+must not change outcomes before it starts. The treatment of one unit also must
+not change the outcomes of other units. Outcomes can still change over time
+for other reasons.
+
+## The limits of this package
+
+These limits apply to fasttrop 0.1.0:
+
+- The package cannot use covariates.
+- The global method works only for a block design, and it must have at least
+  two units that are never treated.
+- Outcomes can be `NA`, but the tests for the tuning and for the bootstrap use
+  only a small number of `NA` cells.
+- The equations come from arXiv version 3 of the paper. A line-by-line
+  comparison with the journal version is not complete.
+- We ran the validation scripts and the benchmark scripts only on Windows.
+  GitHub Actions runs `R CMD check` on Linux, macOS, and Windows.
+
+## Good practice
+
+1. Make simulations that copy your data, and compare the methods on them.
+   This is the preferred approach of the authors of TROP. The function
+   `trop_simulate()` makes a simple panel. For a real check, the simulation
+   must copy the patterns of your own data.
+2. Compare TROP with TWFE. The article
+   [How to read your results](read-your-results.html) shows how.
+3. Make sure that the design that fasttrop reports is the design that you
+   expect.
+4. Use enough bootstrap draws for the final result. The default is 200.
+5. Report the method, the tuning parameters, the number of treated units, the
+   number of bootstrap draws, and the type of interval.
+6. With few treated units, use the interval with care, and say so in your
+   report.

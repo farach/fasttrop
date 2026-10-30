@@ -1,0 +1,37 @@
+Package: fasttrop
+Title: Fast Triply Robust Panel Estimators
+Version: 0.1.0
+Authors@R:
+    person("Alex", "Farach", email = "alexfarach@microsoft.com",
+           role = c("aut", "cre", "cph"))
+Description: The Triply Robust Panel (TROP) estimator of Athey, Imbens, Qu,
+    and Viviano (2026) <doi:10.1002/jae.70061> gives the average treatment
+    effect on the treated in panel data. The estimator adds unit weights, time
+    weights, and a low-rank term with a nuclear-norm penalty to a two-way fixed
+    effects model for a binary treatment. This package has the local estimator
+    of the paper and the global block estimator of the 'Python' package from
+    the authors.
+    It selects the tuning parameters with cross-validation and calculates
+    standard errors with a unit bootstrap. The model fits run in C with
+    'OpenMP' threads and with the 'BLAS' and 'LAPACK' libraries that R uses.
+    The authors of the method did not write this package.
+License: MIT + file LICENSE
+URL: https://farach.github.io/fasttrop/, https://github.com/farach/fasttrop
+BugReports: https://github.com/farach/fasttrop/issues
+Encoding: UTF-8
+Depends:
+    R (>= 4.1.0)
+Imports:
+    parallel,
+    stats
+Suggests:
+    bench,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/Needs/website: ggplot2
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+NeedsCompilation: yes
+Config/roxygen2/version: 8.1.0

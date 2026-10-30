@@ -1,0 +1,140 @@
+url: https://farach.github.io/fasttrop/
+
+template:
+  bootstrap: 5
+  light-switch: true
+  theme: a11y-light
+  theme-dark: a11y-dark
+  bslib:
+    bg: "#FBF8F3"
+    fg: "#1E2A32"
+    primary: "#0B6E79"
+    secondary: "#55636A"
+    base_font: {google: {family: "Atkinson Hyperlegible Next", wght: [400, 700], ital: [0, 1]}}
+    heading_font: {google: {family: "Fraunces", wght: [400, 600]}}
+    code_font: {google: "Atkinson Hyperlegible Mono"}
+    font-size-base: 1.0625rem
+    line-height-base: 1.7
+    headings-font-weight: 600
+    headings-color: "#173F48"
+    link-color: "#0B6E79"
+    link-hover-color: "#0B4F5C"
+    code-color: "#1E2A32"
+    border-radius: 0.6rem
+    border-radius-lg: 0.9rem
+    navbar-light-bg: "#FBF8F3"
+    navbar-dark-bg: "#11181B"
+    body-bg-dark: "#11181B"
+    body-color-dark: "#E4EAEC"
+    headings-color-dark: "#F1F5F6"
+    link-color-dark: "#78D3DA"
+    link-hover-color-dark: "#A9E6EA"
+    code-color-dark: "#E4EAEC"
+    border-color-dark: "#2A3539"
+  opengraph:
+    image:
+      src: man/figures/logo.png
+      alt: "The fasttrop hex logo. A small grid of cells with a coral block of treated cells."
+
+home:
+  title: "fasttrop: fast Triply Robust Panel estimates in R"
+  description: >
+    fasttrop is an R package for the Triply Robust Panel (TROP) estimator.
+    It gives the effect of a treatment in panel data, and its model fits run
+    in C.
+  sidebar:
+    structure: [links, license, citation, authors]
+  links:
+  - text: The paper in the Journal of Applied Econometrics
+    href: https://doi.org/10.1002/jae.70061
+  - text: The preprint on arXiv
+    href: https://arxiv.org/abs/2508.21536
+
+navbar:
+  structure:
+    left: [learn, intro, evidence, reference, news]
+    right: [search, github, lightswitch]
+  components:
+    learn:
+      text: Learn
+      menu:
+      - text: TROP in plain words
+        href: articles/the-big-idea.html
+      - text: How to read your results
+        href: articles/read-your-results.html
+      - text: What TROP can and cannot do
+        href: articles/limits.html
+      - text: Glossary
+        href: articles/glossary.html
+      - text: -------
+      - text: All articles
+        href: articles/index.html
+    evidence:
+      text: Evidence
+      menu:
+      - text: How we checked fasttrop
+        href: articles/validation.html
+      - text: How fast is fasttrop?
+        href: articles/speed.html
+
+articles:
+- title: Start here
+  desc: Learn the idea of TROP and make your first estimate.
+  navbar: ~
+  contents:
+  - articles/the-big-idea
+  - fasttrop
+- title: Use fasttrop
+  desc: Read the results of a fit and know the limits of the method.
+  contents:
+  - articles/read-your-results
+  - articles/limits
+- title: The evidence
+  desc: See how we checked the results and the speed of the package.
+  contents:
+  - articles/validation
+  - articles/speed
+- title: Words
+  desc: Find the meaning of the words that the articles use.
+  contents:
+  - articles/glossary
+
+reference:
+- title: Estimate effects
+  desc: Calculate the TROP estimate for a data frame or for matrices.
+  contents:
+  - trop
+  - trop_matrix
+- title: Read the results
+  desc: Show a fit and get its parts.
+  contents:
+  - trop-methods
+- title: Settings
+  desc: Set the solver options, the tuning grids, and the number of threads.
+  contents:
+  - trop_control
+  - trop_grid
+  - trop_threads
+- title: Practice data
+  desc: Make a panel with a known effect.
+  contents:
+  - trop_simulate
+
+figures:
+  dev: ragg::agg_png
+  dpi: 96
+  fig.ext: png
+  fig.width: 7.5
+  fig.height: ~
+  fig.retina: 2
+  fig.asp: 0.6
+  bg: transparent
+
+footer:
+  structure:
+    left: [developed_by, method]
+    right: [built_with]
+  components:
+    method: >
+      The TROP method is from Athey, Imbens, Qu, and Viviano (2026). The
+      authors of the method did not write this package.
