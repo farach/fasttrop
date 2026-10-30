@@ -1,0 +1,8 @@
+panel,task,implementation,seconds,value
+panel_20x15,"local ATT, fixed lambda",diff-diff (Python),3.4243691,0.8382039885
+panel_20x15,"global ATT, fixed lambda",diff-diff (Python),0.5511993,0.8417697063
+panel_20x15,"global ATT, fixed lambda","trop (authors, Python/CVXPY)",0.09998199999,0.8417703907
+panel_20x15,"LOOCV Q(lambda), all untreated cells",diff-diff (Python),56.6280268,200.6118952
+panel_40x20,"local ATT, fixed lambda",diff-diff (Python),9.3284338,0.9780661872
+panel_40x20,"global ATT, fixed lambda",diff-diff (Python),0.95077,0.9389820495
+panel_40x20,"global ATT, fixed lambda","trop (authors, Python/CVXPY)",0.2519805,0.9389827374

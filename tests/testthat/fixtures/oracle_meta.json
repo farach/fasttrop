@@ -1,0 +1,8 @@
+{
+  "trop_commit": "43738cdaa8eb8356566903bb010bbf6ce4cb31b9",
+  "diff_diff_commit": "d46a5fd8b377923d944dc47bcf6d82233d0ebcfd",
+  "diff_diff_tol": 1e-09,
+  "diff_diff_max_iter": 200000,
+  "global_solver_trop": "CLARABEL",
+  "generated": "2026-10-30 13:13:25"
+}

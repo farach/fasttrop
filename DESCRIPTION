@@ -1,0 +1,29 @@
+Package: fasttrop
+Title: Fast Triply Robust Panel Estimators for Panel Causal Inference
+Version: 0.1.0
+Authors@R:
+    person("Alex", "Farach", email = "farach@users.noreply.github.com",
+           role = c("aut", "cre"))
+Description: Implements the Triply Robust Panel (TROP) estimator of Athey,
+    Imbens, Qu, and Viviano (2026) <doi:10.1002/jae.70061> for average effects
+    of binary treatments in panel data. The estimator combines unit weights,
+    time weights, and a nuclear-norm regularized factor model on top of two-way
+    fixed effects. It provides the paper's per-cell estimator and the block
+    estimator of the authors' reference software, cross-validated tuning, and a
+    unit bootstrap. The computational core is written in C with 'OpenMP'
+    parallelism. This is an independent implementation and is not affiliated
+    with the authors of the method.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends:
+    R (>= 4.1.0)
+Imports:
+    parallel,
+    stats
+Suggests:
+    bench,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+NeedsCompilation: yes
+Config/roxygen2/version: 8.1.0

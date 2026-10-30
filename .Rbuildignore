@@ -1,0 +1,5 @@
+^data-raw$
+^inst/bench/panel_.*\.csv$
+^inst/validation/known-truth-draws-.*\.csv$
+^.*\.Rproj$
+^\.Rproj\.user$

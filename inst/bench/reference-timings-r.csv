@@ -1,0 +1,13 @@
+"panel","task","implementation","seconds","value"
+"panel_20x15","local ATT, fixed lambda","fasttrop (C, 1 thread)",0.0436483999947086,0.838196785056763
+"panel_20x15","global ATT, fixed lambda","fasttrop (C, 1 thread)",0.00317539999377914,0.841768014442822
+"panel_20x15","LOOCV Q(lambda), all untreated cells","fasttrop (C, 1 thread)",0.853470700007165,200.612094417135
+"panel_20x15","local ATT, fixed lambda","fasttrop (C, 4 threads)",0.0160452999989502,0.838196785056763
+"panel_20x15","global ATT, fixed lambda","fasttrop (C, 4 threads)",0.0040183000091929,0.841768014442822
+"panel_20x15","LOOCV Q(lambda), all untreated cells","fasttrop (C, 4 threads)",0.200022800010629,200.612094417135
+"panel_20x15","local ATT, fixed lambda","cfcompare (pure R, per_cell)",5.93061060001492,0.838799147356471
+"panel_40x20","local ATT, fixed lambda","fasttrop (C, 1 thread)",0.325738700019429,0.978058749962752
+"panel_40x20","global ATT, fixed lambda","fasttrop (C, 1 thread)",0.0102493999875151,0.93898275263363
+"panel_40x20","local ATT, fixed lambda","fasttrop (C, 4 threads)",0.0882213000149932,0.978058749962752
+"panel_40x20","global ATT, fixed lambda","fasttrop (C, 4 threads)",0.0084297000139486,0.93898275263363
+"panel_40x20","local ATT, fixed lambda","cfcompare (pure R, per_cell)",49.6672269999981,0.972549083554844
