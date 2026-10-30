@@ -12,6 +12,12 @@ src/*.o
 src/*.so
 src/*.dll
 
+# pkgdown website and built vignettes
+docs/
+inst/doc
+/doc/
+/Meta/
+
 # Python
 __pycache__/
 *.pyc

@@ -1,5 +1,6 @@
 ^data-raw$
 ^tools$
+^\.git$
 ^\.github$
 ^cran-comments\.md$
 ^LICENSE\.md$
@@ -9,3 +10,9 @@
 ^inst/validation/known-truth-draws-.*\.csv$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^vignettes/articles$
+^doc$
+^Meta$
