@@ -38,3 +38,18 @@ This is the first version of the package.
   by step.
 - `citation("fasttrop")` gives the references for the paper and the
   package.
+
+### Validation
+
+- The documents use the name “TWFE imputation” for the special case
+  `lambda = c(time = 0, unit = 0, nn = Inf)`. This method fits a two-way
+  fixed effects model to the untreated cells only. In a staggered
+  design, it is different from a conventional TWFE regression.
+- Two new tests compare TWFE imputation with a conventional TWFE
+  regression. The test suite has 478 expectations.
+- The new script `inst/validation/staggered.R` runs simulations with a
+  staggered design and a known effect. It compares a conventional TWFE
+  regression, TWFE imputation, and the local method of TROP. The folder
+  `inst/validation` has the saved results.
+- The article “How we checked fasttrop” has the results of the new
+  simulations. The article “What TROP can and cannot do” has the limits.

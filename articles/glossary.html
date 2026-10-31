@@ -295,10 +295,20 @@ The three numbers that control TROP: <code>time</code>,
 <code>unit</code>, and <code>nn</code>. Cross-validation selects them,
 or you can set them.
 </dd>
+<dt>TWFE imputation</dt>
+<dd>
+A method with two steps. First, it fits an effect for each unit and an
+effect for each period to the untreated cells only. Second, it uses this
+model to calculate the outcome without the treatment for each treated
+cell. TROP with equal weights and no low-rank term gives the same
+result.
+</dd>
 <dt>Two-way fixed effects (TWFE)</dt>
 <dd>
-A model with an effect for each unit and an effect for each period. TROP
-with equal weights and no low-rank term gives the same result as TWFE.
+A model with an effect for each unit and an effect for each period. A
+conventional TWFE regression fits this model to all cells, with one
+coefficient for the treatment. In a staggered design, its result can be
+different from the result of TWFE imputation.
 </dd>
 <dt>Unit</dt>
 <dd>

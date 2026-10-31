@@ -8,9 +8,10 @@ noise. The units with the highest scores get the treatment.
 With a positive value of `selection`, a unit with a larger loading has a
 higher probability of treatment. With a negative value, a unit with a
 smaller loading has a higher probability. With zero, the loading has no
-effect on the selection. Two-way fixed effects (TWFE) does not model
-this factor, so its estimate for one panel can have a large error. TROP
-can reduce such errors, but some error can stay.
+effect on the selection. Imputation with two-way fixed effects (TWFE
+imputation) does not model this factor, so its estimate for one panel
+can have a large error. TROP can reduce such errors, but some error can
+stay.
 
 ## Usage
 

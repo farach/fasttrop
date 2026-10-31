@@ -134,7 +134,7 @@ follow a hidden pattern more strongly than the untreated units.</p>
 <span><span class="co">#&gt;   Tuning: loocv, score 99.73, 28 grid evaluations</span></span>
 <span><span class="co">#&gt;   Bootstrap: 200 draws (stratified), 0 failed, normal interval</span></span>
 <span><span class="co">#&gt;   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0</span></span>
-<span><span class="co">#&gt;   Time: 56.044 s in total, 56.032 s in the C code (2 threads)</span></span></code></pre></div>
+<span><span class="co">#&gt;   Time: 22.024 s in total, 22.015 s in the C code (4 threads)</span></span></code></pre></div>
 <p>The first lines of the output give the method, the design, and the
 size of the panel. fasttrop finds the design from the treatment column.
 Make sure that the design is the design that you expect. If it is not,
@@ -254,8 +254,9 @@ patterns</td>
 </tbody>
 </table>
 <p>With <code>time = 0</code>, <code>unit = 0</code>, and
-<code>nn = Inf</code>, TROP gives the same result as two-way fixed
-effects (TWFE).</p>
+<code>nn = Inf</code>, TROP gives the same result as TWFE imputation.
+This method fits two-way fixed effects (TWFE) to the untreated cells
+only.</p>
 <p>The line <code>Tuning</code> in the summary gives the criterion, the
 score of the selected values, and the number of grid points that the
 search examined. A smaller score is better. The element
@@ -263,28 +264,33 @@ search examined. A smaller score is better. The element
 search examined.</p>
 </div>
 <div class="section level2">
-<h2 id="a-comparison-with-twfe">A comparison with TWFE<a class="anchor" aria-label="anchor" href="#a-comparison-with-twfe"></a>
+<h2 id="a-comparison-with-twfe-imputation">A comparison with TWFE imputation<a class="anchor" aria-label="anchor" href="#a-comparison-with-twfe-imputation"></a>
 </h2>
-<p>A fit with TWFE shows how much the three ideas of TROP change the
-result. To get this fit, set the tuning parameters to the TWFE
-values:</p>
+<p>A fit with TWFE imputation shows how much the three ideas of TROP
+change the result. To get this fit, set the tuning parameters to the
+TWFE values:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">twfe</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trop.html">trop</a></span><span class="op">(</span><span class="va">panel</span>, outcome <span class="op">=</span> <span class="st">"y"</span>, treatment <span class="op">=</span> <span class="st">"d"</span>, unit <span class="op">=</span> <span class="st">"unit"</span>, time <span class="op">=</span> <span class="st">"time"</span>,</span>
 <span>             lambda <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>time <span class="op">=</span> <span class="fl">0</span>, unit <span class="op">=</span> <span class="fl">0</span>, nn <span class="op">=</span> <span class="cn">Inf</span><span class="op">)</span>, n_boot <span class="op">=</span> <span class="fl">200</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span>TROP <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>ATT <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>      TWFE <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>ATT <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">twfe</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">twfe</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;       ATT.ATT                  </span></span>
-<span><span class="co">#&gt; TROP 1.224808 0.8435055 1.60611</span></span>
-<span><span class="co">#&gt; TWFE 1.930423 1.3171848 2.54366</span></span></code></pre></div>
+<span>      `TWFE imputation` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>ATT <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">twfe</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">twfe</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                  ATT.ATT                  </span></span>
+<span><span class="co">#&gt; TROP            1.224808 0.8435055 1.60611</span></span>
+<span><span class="co">#&gt; TWFE imputation 1.930423 1.3171848 2.54366</span></span></code></pre></div>
 <p>In this practice panel, the ATT of TROP is 1.22, and the ATT of TWFE
-is 1.93. The true effect is 1. Thus, the estimate of TROP differs from
-the true effect by 0.22, and the estimate of TWFE differs by 0.93. One
-panel does not show the average bias of either method.</p>
+imputation is 1.93. The true effect is 1. Thus, the estimate of TROP
+differs from the true effect by 0.22, and the estimate of TWFE
+imputation differs by 0.93. One panel does not show the average bias of
+either method.</p>
+<p>The practice panel has a block design with no <code>NA</code>
+outcomes. Thus, the ATT of TWFE imputation is also the treatment
+coefficient of a conventional TWFE regression. In a staggered design,
+the two results can be different. The article <a href="validation.html">How we checked fasttrop</a> shows an example.</p>
 <p>If the two results are very different, examine why. For example, the
 treated units can have a different trend from the untreated units. In
-our simulation B, TWFE had a large bias in this case, and TROP also kept
-some bias. The article <a href="limits.html">What TROP can and cannot
-do</a> gives the details.</p>
+our simulation B, TWFE imputation had a large bias in this case, and
+TROP also kept some bias. The article <a href="limits.html">What TROP
+can and cannot do</a> gives the details.</p>
 </div>
 <div class="section level2">
 <h2 id="warning-messages-and-errors">Warning messages and errors<a class="anchor" aria-label="anchor" href="#warning-messages-and-errors"></a>

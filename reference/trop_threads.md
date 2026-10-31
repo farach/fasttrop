@@ -21,5 +21,5 @@ cores, with a minimum of 1. When the environment variable
 
 ``` r
 trop_threads()
-#> [1] 2
+#> [1] 4
 ```

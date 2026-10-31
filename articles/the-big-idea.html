@@ -230,7 +230,11 @@ cells and measures the error. Then it selects the values with the
 smallest total error.</p>
 <p>A value can also remove the effect of a part. For example, a time
 parameter of 0 gives the same weight to all periods. With equal weights
-and no hidden patterns, TROP gives the same result as TWFE.</p>
+and no hidden patterns, TROP gives the same result as TWFE imputation.
+This method fits an effect for each unit and an effect for each period
+to the untreated cells. In a staggered design, it can give a different
+result from the treatment coefficient of a conventional TWFE
+regression.</p>
 </div>
 <div class="section level2">
 <h2 id="what-triply-robust-means">What “triply robust” means<a class="anchor" aria-label="anchor" href="#what-triply-robust-means"></a>
@@ -268,8 +272,8 @@ only when their estimation error is small.</li>
 paper. It does not make the bias zero in all data.</li>
 <li>In one of our simulations, the selection of the treated units
 favored units with large trends. TROP removed half to two thirds of the
-TWFE bias, but some bias stayed. The article <a href="limits.html">What
-TROP can and cannot do</a> gives the details.</li>
+bias of TWFE imputation, but some bias stayed. The article <a href="limits.html">What TROP can and cannot do</a> gives the
+details.</li>
 </ul>
 </div>
 </div>

@@ -107,19 +107,26 @@ most 4e-8.</li>
 <li>The difference from the Python package of the authors is larger, but
 it is still less than 3e-5. It comes from the less accurate solver of
 that package.</li>
-<li>With each change to the code, 472 test expectations run on six
+<li>With each change to the code, 478 test expectations run on six
 platforms.</li>
-<li>In simulations with a known effect, TROP had an error 44% to 62%
-smaller than the error of TWFE. This result is for a random selection of
-the treated units.</li>
-<li>In a simulation that selected treated units with large trends, TROP
-reduced the bias, but some bias stayed.</li>
+<li>With a block design and random selection of the treated units, TROP
+had an error 44% to 62% smaller than TWFE imputation.</li>
+<li>In a block-design simulation that selected treated units with large
+trends, TROP reduced the bias, but some bias stayed.</li>
+<li>In a staggered design with effects that differ between cohorts, a
+conventional TWFE regression had a bias of -0.36. TWFE imputation and
+TROP local had biases of -0.005 and -0.006.</li>
+<li>With parallel trends in a staggered design, TROP local had an RMSE
+4% larger than TWFE imputation.</li>
+<li>With different trends in a staggered design, TROP local had a bias
+20% smaller than TWFE imputation. But a large bias stayed.</li>
 </ul>
 </div>
 <p>We checked fasttrop in three ways. First, we compared its results
 with other implementations of TROP. Second, tests examine the tuning and
 the bootstrap. Third, simulations with a known effect show how well the
-estimates and the intervals work.</p>
+estimates and the intervals work. They use a block design and a
+staggered design.</p>
 <div class="section level2">
 <h2 id="agreement-with-other-implementations">Agreement with other implementations<a class="anchor" aria-label="anchor" href="#agreement-with-other-implementations"></a>
 </h2>
@@ -133,9 +140,9 @@ the global method.</li>
 has the global method for a block design.</li>
 </ul>
 <p>The comparison used four small test panels and five sets of fixed
-tuning parameters. The sets include TWFE, weighted TWFE, matrix
-completion, and two sets for the full TROP estimator. One panel has a
-staggered design, so it has no global estimate.</p>
+tuning parameters. The sets include TWFE imputation, weighted TWFE
+imputation, matrix completion, and two sets for the full TROP estimator.
+One panel has a staggered design, so it has no global estimate.</p>
 <div class="figure">
 <img src="validation_files/figure-html/agreement-fig-1.png" class="r-plt" alt="A dot chart with a log scale from 1e-14 to 1e-4. For the local and global methods compared with diff-diff, all dots are below 1e-7. For the global method compared with the package of the authors, the dots go up to 2.5e-5." width="720"><p class="caption">
 The absolute difference between the ATT of fasttrop and the ATT of each
@@ -206,21 +213,25 @@ whether to select the tuning parameters again.</li>
 <li>The weights of the local method are equal to an independent R
 calculation of the formula in the paper.</li>
 <li>With <code>lambda = c(time = 0, unit = 0, nn = Inf)</code>, the
-result is equal to imputation with TWFE.</li>
+result is equal to TWFE imputation.</li>
+<li>In a block design with no <code>NA</code> outcomes, TWFE imputation
+is equal to the result of a conventional TWFE regression. In a staggered
+design with effects that differ between cohorts, a test shows that the
+two results are different.</li>
 <li>The number of threads does not change the results. With a seed, the
 results are the same in each run.</li>
 </ul>
-<p>The test suite has 472 expectations. GitHub Actions runs it with
+<p>The test suite has 478 expectations. GitHub Actions runs it with
 <code>R CMD check --as-cran</code> on six platforms: Linux with four
 versions of R, macOS, and Windows.</p>
 </div>
 <div class="section level2">
-<h2 id="simulations-with-a-known-effect">Simulations with a known effect<a class="anchor" aria-label="anchor" href="#simulations-with-a-known-effect"></a>
+<h2 id="simulations-with-a-known-effect-in-a-block-design">Simulations with a known effect in a block design<a class="anchor" aria-label="anchor" href="#simulations-with-a-known-effect-in-a-block-design"></a>
 </h2>
 <p>A simulation makes many panels with a known effect. Then it measures
-how near the estimates are to the truth. We used three simulations.
-Simulations A and B have 200 panels each, and simulation A2 has 100
-panels.</p>
+how near the estimates are to the truth. We used three simulations with
+a block design. Simulations A and B have 200 panels each, and simulation
+A2 has 100 panels.</p>
 <p>In each panel, the true effect is 1 for each treated cell. The
 untreated outcomes have unit effects, period effects, a factor with a
 linear trend, a second factor, and noise. All treated units start the
@@ -276,7 +287,8 @@ treatment in the same period.</p>
 </table>
 <p>We compared three estimators:</p>
 <ul>
-<li>TWFE.</li>
+<li>TWFE imputation. In a block design with no <code>NA</code> outcomes,
+it gives the same estimate as a conventional TWFE regression.</li>
 <li>The local method of TROP, with the leave-one-out criterion on 80
 sampled cells.</li>
 <li>The global method of TROP, with placebo cross-validation on 50
@@ -284,23 +296,25 @@ sets.</li>
 </ul>
 <p>The tuning grid had four values for each parameter. All three
 estimators used the same panels. The bootstrap used 200 draws for TWFE
-and for the global method, and 100 draws for the local method.</p>
+imputation and for the global method, and 100 draws for the local
+method.</p>
 <div class="figure">
-<img src="validation_files/figure-html/rmse-fig-1.png" class="r-plt" alt="A bar chart in three panels. In simulation A, the RMSE is 0.75 for TWFE, 0.30 for TROP local, and 0.29 for TROP global. In simulation A2, it is 0.31, 0.17, and 0.16. In simulation B, it is 1.37, 0.72, and 0.46." width="720"><p class="caption">
+<img src="validation_files/figure-html/rmse-fig-1.png" class="r-plt" alt="A bar chart in three panels. In simulation A, the RMSE is 0.75 for TWFE imputation, 0.30 for TROP local, and 0.29 for TROP global. In simulation A2, it is 0.31, 0.17, and 0.16. In simulation B, it is 1.37, 0.72, and 0.46." width="720"><p class="caption">
 The root mean square error (RMSE) of each estimator in each simulation.
 A smaller RMSE is better.
 </p>
 </div>
 <p>With a random selection of the treated units (simulations A and A2),
 all three estimators have small biases. The RMSE of TROP is 44% to 62%
-less than the RMSE of TWFE. Thus, on average, TROP gives estimates that
-are nearer to the truth. In simulation A, the local method was nearer to
-the truth than TWFE in 170 of 200 panels.</p>
+less than the RMSE of TWFE imputation. Thus, on average, TROP gives
+estimates that are nearer to the truth. In simulation A, the local
+method was nearer to the truth than TWFE imputation in 170 of 200
+panels.</p>
 <p>In simulation B, the selection favors the units with the largest
-trends. TWFE has a large bias. TROP removes approximately half of this
-bias with the local method and two thirds with the global method, but
-some bias stays. The article <a href="limits.html">What TROP can and
-cannot do</a> explains why.</p>
+trends. TWFE imputation has a large bias. TROP removes approximately
+half of this bias with the local method and two thirds with the global
+method, but some bias stays. The article <a href="limits.html">What TROP
+can and cannot do</a> explains why.</p>
 <div class="figure">
 <img src="validation_files/figure-html/coverage-fig-1.png" class="r-plt" alt="A dot chart in three panels with the normal interval and the percentile interval for each estimator. In simulations A and A2, the coverage of TROP is between 0.89 and 0.99. In simulation B, the coverage is between 0.39 and 0.70 for all estimators." width="720"><p class="caption">
 The coverage of the 95% intervals: the share of panels in which the
@@ -314,6 +328,282 @@ local method has a coverage of only 89% in simulation A. For this
 reason, the normal interval is the default. In simulation A2, the global
 interval has a coverage of 99%, so it is wider than necessary. In
 simulation B, the bias makes the coverage of all intervals too low.</p>
+</div>
+<div class="section level2">
+<h2 id="simulations-with-a-staggered-design">Simulations with a staggered design<a class="anchor" aria-label="anchor" href="#simulations-with-a-staggered-design"></a>
+</h2>
+<p>In a staggered design, the treated units start the treatment in
+different periods. In this design, a conventional TWFE regression can
+give negative weights to the effects in some treated cells. <a href="https://arxiv.org/abs/2610.39995" class="external-link">Hull (2026)</a> compares this
+regression with two modern estimators in 1,346 specifications from 108
+papers in ten economics journals. One of the modern estimators is
+imputation. The study does not examine TROP.</p>
+<p>We made three simulations with a staggered design and a known effect.
+Simulation C has one effect for all treated cells. Simulation D tests
+the problem of the regression: effects that differ between cohorts.
+Simulation E adds trends that differ between the cohorts.</p>
+<p>These simulations do not repeat the study of Hull, because they use
+simulated data. The theory of the paper is for a block design, so they
+do not test the theory. They measure the bias, the error, and the
+coverage of the intervals.</p>
+<p>Each panel has 60 units and 16 periods. Four cohorts of 12 units
+start the treatment in periods 5, 8, 11, and 14, and stay treated. The
+12 other units are never treated. Thus, each panel has 360 treated
+cells. Each simulation has 200 panels.</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Simulation</th>
+<th>Effect in the treated cells</th>
+<th>Trends of the untreated outcomes</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>C</td>
+<td>1</td>
+<td>Parallel</td>
+</tr>
+<tr class="even">
+<td>D</td>
+<td>0.8, 0.6, 0.4, or 0.2 for the four cohorts, plus 0.1 for each period
+since the start</td>
+<td>Parallel</td>
+</tr>
+<tr class="odd">
+<td>E</td>
+<td>The same as in D</td>
+<td>Different between the cohorts</td>
+</tr>
+</tbody>
+</table>
+<p>In simulations D and E, the effect is between 0.2 and 1.9. Its mean
+over the treated cells is 1. In each simulation, the truth is the mean
+of the effects in the treated cells.</p>
+<p>In simulation E, the untreated outcomes also have the two factors of
+simulation A. The score of a unit is its loading on the linear trend
+plus a random number. The units with the largest scores start first. The
+12 units with the smallest scores are never treated. Thus, the trends of
+the cohorts differ.</p>
+<p>We compared three estimators on the same panels:</p>
+<ul>
+<li>A conventional TWFE regression. It has unit effects, period effects,
+and one coefficient for the treatment. It uses all cells. Its standard
+error uses one cluster for each unit.</li>
+<li>TWFE imputation. It fits unit effects and period effects to the
+untreated cells. Then it takes the mean of the estimated effects in the
+treated cells.</li>
+<li>The local method of TROP. It has the same tuning grid and the same
+cross-validation as the simulations above.</li>
+</ul>
+<p>In a block design with no <code>NA</code> outcomes, the regression
+and TWFE imputation give the same estimate. In a staggered design, they
+can differ. The regression gives its own weights to the treated cells.
+The two other estimators give the weight 1 to each treated cell.</p>
+<p>The global method is only for a block design, so we did not use it.
+The bootstrap had 200 draws for TWFE imputation and 100 draws for the
+local method. It kept the tuning parameters fixed. The regression has a
+normal interval only.</p>
+<div class="section level3">
+<h3 id="the-weights-of-the-regression">The weights of the regression<a class="anchor" aria-label="anchor" href="#the-weights-of-the-regression"></a>
+</h3>
+<p>With parallel trends, the regression estimates a weighted mean of the
+effects in the treated cells. The weights depend only on the start
+periods of the cohorts.</p>
+<div class="figure">
+<img src="validation_files/figure-html/stag-weights-1.png" class="r-plt" alt="A bar chart in four panels, one for each cohort. For the cohort that starts in period 5, the weight is 2.0 in the first three periods and -0.82 in the last three periods. For the other cohorts, the weights are between 0.06 and 1.94. The dashed line is the weight 1 of TWFE imputation." width="720"><p class="caption">
+The weight of the regression on the treated cells. Each bar is one
+cohort in one period. The dashed line is the weight 1 of TWFE
+imputation. The mean weight is 1.
+</p>
+</div>
+<p>In 3 of the 30 groups, the weight is negative. These are the periods
+14 to 16 of the cohort that starts in period 5. In simulations D and E,
+these cells have the largest effects of the design. With these weights,
+the weighted mean of the effects is 0.64, and the true mean is 1.</p>
+</div>
+<div class="section level3">
+<h3 id="the-results">The results<a class="anchor" aria-label="anchor" href="#the-results"></a>
+</h3>
+<p>The table has the results. The bias has its Monte Carlo standard
+error in parentheses. The column “SD” is the standard deviation of the
+estimates over the panels, and “Mean SE” is the mean of the standard
+errors. The last two columns are the coverage of the 95% intervals.</p>
+<table style="width:100%;" class="table">
+<colgroup>
+<col width="11%">
+<col width="16%">
+<col width="15%">
+<col width="6%">
+<col width="8%">
+<col width="6%">
+<col width="16%">
+<col width="20%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">Simulation</th>
+<th align="left">Estimator</th>
+<th align="right">Bias (MC SE)</th>
+<th align="right">SD</th>
+<th align="right">Mean SE</th>
+<th align="right">RMSE</th>
+<th align="right">Normal interval</th>
+<th align="right">Percentile interval</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">C</td>
+<td align="left">TWFE regression</td>
+<td align="right">-0.005 (0.004)</td>
+<td align="right">0.055</td>
+<td align="right">0.056</td>
+<td align="right">0.055</td>
+<td align="right">95.5%</td>
+<td align="right">None</td>
+</tr>
+<tr class="even">
+<td align="left"></td>
+<td align="left">TWFE imputation</td>
+<td align="right">-0.005 (0.004)</td>
+<td align="right">0.063</td>
+<td align="right">0.063</td>
+<td align="right">0.063</td>
+<td align="right">97.5%</td>
+<td align="right">95.0%</td>
+</tr>
+<tr class="odd">
+<td align="left"></td>
+<td align="left">TROP local</td>
+<td align="right">-0.006 (0.005)</td>
+<td align="right">0.066</td>
+<td align="right">0.065</td>
+<td align="right">0.066</td>
+<td align="right">97.0%</td>
+<td align="right">95.5%</td>
+</tr>
+<tr class="even">
+<td align="left">D</td>
+<td align="left">TWFE regression</td>
+<td align="right">-0.361 (0.004)</td>
+<td align="right">0.055</td>
+<td align="right">0.067</td>
+<td align="right">0.366</td>
+<td align="right">0.0%</td>
+<td align="right">None</td>
+</tr>
+<tr class="odd">
+<td align="left"></td>
+<td align="left">TWFE imputation</td>
+<td align="right">-0.005 (0.004)</td>
+<td align="right">0.063</td>
+<td align="right">0.080</td>
+<td align="right">0.063</td>
+<td align="right">98.5%</td>
+<td align="right">98.5%</td>
+</tr>
+<tr class="even">
+<td align="left"></td>
+<td align="left">TROP local</td>
+<td align="right">-0.006 (0.005)</td>
+<td align="right">0.066</td>
+<td align="right">0.082</td>
+<td align="right">0.066</td>
+<td align="right">98.0%</td>
+<td align="right">96.0%</td>
+</tr>
+<tr class="odd">
+<td align="left">E</td>
+<td align="left">TWFE regression</td>
+<td align="right">0.225 (0.011)</td>
+<td align="right">0.162</td>
+<td align="right">0.209</td>
+<td align="right">0.277</td>
+<td align="right">91.5%</td>
+<td align="right">None</td>
+</tr>
+<tr class="even">
+<td align="left"></td>
+<td align="left">TWFE imputation</td>
+<td align="right">1.257 (0.017)</td>
+<td align="right">0.238</td>
+<td align="right">0.250</td>
+<td align="right">1.280</td>
+<td align="right">0.0%</td>
+<td align="right">0.5%</td>
+</tr>
+<tr class="odd">
+<td align="left"></td>
+<td align="left">TROP local</td>
+<td align="right">1.006 (0.015)</td>
+<td align="right">0.215</td>
+<td align="right">0.214</td>
+<td align="right">1.029</td>
+<td align="right">0.5%</td>
+<td align="right">0.5%</td>
+</tr>
+</tbody>
+</table>
+<div class="figure">
+<img src="validation_files/figure-html/stag-bias-fig-1.png" class="r-plt" alt="A dot chart in three panels, one for each simulation. It shows the bias of each estimator. In simulation C, it is -0.01 for TWFE regression, -0.01 for TWFE imputation, and -0.01 for TROP local. In simulation D, it is -0.36 for TWFE regression, -0.01 for TWFE imputation, and -0.01 for TROP local. In simulation E, it is 0.22 for TWFE regression, 1.26 for TWFE imputation, and 1.01 for TROP local." width="720"><p class="caption">
+The bias of each estimator. The number at the right of each row is the
+bias. The true effect is the mean of the effects in the treated cells.
+The bars show two Monte Carlo standard errors.
+</p>
+</div>
+<p>In simulation C, the three estimators have small biases. Each bias is
+less than two Monte Carlo standard errors from zero. The regression has
+the smallest standard deviation. Its model is correct in simulation C,
+and it uses the treated cells in the fit.</p>
+<p>In simulation D, the bias of the regression is -0.36. Thus, its mean
+estimate is 63.9% of the true effect. Its 95% interval contains the
+truth in 0 of the 200 panels. TWFE imputation and the local method have
+the same biases as in simulation C. They use only the untreated cells in
+the fit, and the panels have the same noise in both simulations.</p>
+<p>In simulation E, the biases of TWFE imputation and of the local
+method are large. They are 1.26 and 1.01, and the true effect is 1. The
+local method has a bias 20% smaller and an RMSE 20% smaller than TWFE
+imputation. But the mean estimate of the local method is 2.0 times the
+true effect.</p>
+<p>In simulation E, the regression has the smallest bias, 0.22. This
+result does not show an advantage of the regression. Its bias has two
+parts. The weights give -0.36, as in simulation D. The different trends
+add approximately 0.58. The two parts have opposite signs, so they
+partly cancel, but in another design they can have the same sign.</p>
+<div class="figure">
+<img src="validation_files/figure-html/stag-coverage-fig-1.png" class="r-plt" alt="A dot chart in three panels, one for each simulation. It shows the coverage of the 95% normal interval of each estimator. The target is 95%. In simulation C, it is 95.5% for TWFE regression, 97.5% for TWFE imputation, and 97.0% for TROP local. In simulation D, it is 0.0% for TWFE regression, 98.5% for TWFE imputation, and 98.0% for TROP local. In simulation E, it is 91.5% for TWFE regression, 0.0% for TWFE imputation, and 0.5% for TROP local." width="720"><p class="caption">
+The coverage of the 95% intervals: the share of panels in which the
+interval contains the true effect. The dashed line is the target of 95%.
+The bars show two Monte Carlo standard errors.
+</p>
+</div>
+<p>In simulation D, the intervals of TWFE imputation and of the local
+method are wider than necessary. The mean standard error of TWFE
+imputation is 0.080, but the standard deviation of its estimates is
+0.063. The coverage of its normal interval is 98.5%, and the coverage of
+its percentile interval is 98.5%. The local method has the same
+pattern.</p>
+<p>We think that the bootstrap causes this result. It resamples the
+treated units, so the number of units in each cohort changes in each
+draw. The effect differs between the cohorts, so the mean effect also
+changes. Each simulated panel has 12 units in each cohort. We did not
+test this cause in a saved simulation.</p>
+<p>In simulation E, the intervals of TWFE imputation and of the local
+method contain the true effect in at most 1 of the 200 panels. The bias
+is large compared with the standard deviation of the estimates, which is
+0.24 and 0.21. The normal interval of the regression has a coverage of
+91.5%.</p>
+<p>These simulations have limits. They use one design with 60 units, 16
+periods, and four cohorts. They also use one tuning grid. The noise is
+independent between the cells, but the noise in real panels can have
+correlation over time.</p>
+<p>We did not test the other modern estimator of Hull. It averages the
+DiD estimates of each cohort and period. We also did not compare TROP
+with a modern estimator on real data. Hull recommends this comparison
+for each application.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="the-scripts-and-the-data">The scripts and the data<a class="anchor" aria-label="anchor" href="#the-scripts-and-the-data"></a>

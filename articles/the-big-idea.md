@@ -138,7 +138,10 @@ smallest total error.
 
 A value can also remove the effect of a part. For example, a time
 parameter of 0 gives the same weight to all periods. With equal weights
-and no hidden patterns, TROP gives the same result as TWFE.
+and no hidden patterns, TROP gives the same result as TWFE imputation.
+This method fits an effect for each unit and an effect for each period
+to the untreated cells. In a staggered design, it can give a different
+result from the treatment coefficient of a conventional TWFE regression.
 
 ## What “triply robust” means
 
@@ -173,10 +176,10 @@ The limits of this result
 - The result is a limit on the bias under the assumptions of the paper.
   It does not make the bias zero in all data.
 - In one of our simulations, the selection of the treated units favored
-  units with large trends. TROP removed half to two thirds of the TWFE
-  bias, but some bias stayed. The article [What TROP can and cannot
-  do](https://farach.github.io/fasttrop/articles/limits.md) gives the
-  details.
+  units with large trends. TROP removed half to two thirds of the bias
+  of TWFE imputation, but some bias stayed. The article [What TROP can
+  and cannot do](https://farach.github.io/fasttrop/articles/limits.md)
+  gives the details.
 
 ## What the authors found
 

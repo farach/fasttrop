@@ -219,6 +219,20 @@ periods are different, but the treatment does not stop. In a general design,
 the treatment stops for one or more units.</p>
     </div>
     <div class="section level2">
+    <h2 id="twfe-imputation">TWFE imputation<a class="anchor" aria-label="anchor" href="#twfe-imputation"></a></h2>
+
+
+<p>With <code>lambda = c(time = 0, unit = 0, nn = Inf)</code>, both methods give TWFE
+imputation. This method fits unit effects and period effects to the
+untreated cells only. Then it subtracts the fitted value from the outcome of
+each treated cell.</p>
+<p>A conventional TWFE regression is different. It uses all cells, and it has
+one coefficient for the treatment. In a block design with no <code>NA</code> outcomes,
+the two results are the same. In a staggered design, the results can be
+different if the effects are different between treated cells. The regression
+can give negative weights to some treated cells.</p>
+    </div>
+    <div class="section level2">
     <h2 id="inference">Inference<a class="anchor" aria-label="anchor" href="#inference"></a></h2>
 
 

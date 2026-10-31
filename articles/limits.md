@@ -8,6 +8,8 @@ Key points
 - The bootstrap interval is reliable only with many treated units.
 - In our simulation with larger trends for the treated units, TROP
   reduced the bias, but some bias stayed.
+- In our simulation of a staggered design with larger trends for the
+  treated units, TROP reduced the bias by 20%. A large bias stayed.
 - fasttrop cannot use covariates.
 
 ## What TROP can do
@@ -64,10 +66,10 @@ In simulation A, a random draw selects the treated units. In simulation
 B, the selection favors the units with the largest trends. The true
 effect is 1 in both simulations.
 
-![A dot chart in two panels. In simulation A, the bias is -0.10 for
-TWFE, -0.04 for TROP local, and -0.03 for TROP global. In simulation B,
-the bias is 1.20 for TWFE, 0.64 for TROP local, and 0.37 for TROP
-global.](limits_files/figure-html/bias-fig-1.png)
+![A dot chart in two panels. In simulation A, the bias is -0.10 for TWFE
+imputation, -0.04 for TROP local, and -0.03 for TROP global. In
+simulation B, the bias is 1.20 for TWFE imputation, 0.64 for TROP local,
+and 0.37 for TROP global.](limits_files/figure-html/bias-fig-1.png)
 
 Bias of three estimators, with 200 simulated panels in each simulation.
 In simulation A, a random draw selects the treated units. In simulation
@@ -75,13 +77,56 @@ B, the selection favors the units with the largest trends. The bars show
 two Monte Carlo standard errors.
 
 In simulation A, each bias is small, and each one is less than three
-Monte Carlo standard errors from zero. In simulation B, TWFE has a large
-bias. TROP removes approximately half of this bias with the local method
-and two thirds with the global method, but some bias stays. The
-intervals in simulation B also have a coverage below 95%. The article
-[How we checked
+Monte Carlo standard errors from zero. In simulation B, TWFE imputation
+has a large bias. TROP removes approximately half of this bias with the
+local method and two thirds with the global method, but some bias stays.
+The intervals in simulation B also have a coverage below 95%. The
+article [How we checked
 fasttrop](https://farach.github.io/fasttrop/articles/validation.md)
-shows the saved results for TWFE and the two TROP methods.
+shows the saved results for TWFE imputation and the two TROP methods.
+
+### In a staggered design, we have simulations but no proof
+
+In a staggered design, the treated units start the treatment in
+different periods. The paper on TROP has no proof for this design. We
+made three simulations with a staggered design to see how fasttrop
+works. The article [How we checked
+fasttrop](https://farach.github.io/fasttrop/articles/validation.md) has
+the details.
+
+[Hull (2026)](https://arxiv.org/abs/2610.39995) compares a conventional
+TWFE regression with two modern estimators in real studies. In a
+staggered design, the regression can give negative weights to some
+effects. TWFE imputation, the special case of TROP in fasttrop, gives
+the weight 1 to each treated cell. The study does not examine TROP.
+
+In simulation D, the effects differ between the cohorts, and the trends
+are parallel. The bias of the regression was -0.36. Its 95% interval
+contained the true effect in 0 of the 200 panels. TWFE imputation and
+TROP local had biases of -0.005 and -0.006. Their intervals contained
+the true effect in 96.0% to 98.5% of the panels.
+
+When the trends are parallel, TROP had no gain over TWFE imputation. In
+simulations C and D, the RMSE of TROP local was 4% larger than the RMSE
+of TWFE imputation.
+
+In simulation E, the effects are the same as in simulation D, but the
+trends are not parallel. The units with larger trends start the
+treatment first. TWFE imputation had a bias of 1.26, and TROP local had
+a bias of 1.01. The true effect was 1. The bias of TROP local was 20%
+smaller than the bias of TWFE imputation, but a large bias stayed. The
+intervals of both methods contained the true effect in at most 1 of the
+200 panels.
+
+In simulation E, the regression had the smallest bias, 0.22. This result
+does not show an advantage of the regression. Its bias in simulation D
+was -0.36, and its weights are the same in simulation E. Thus, the
+errors from the weights and from the trends have opposite signs, and
+they partly cancel.
+
+These simulations use 60 units, four cohorts, and one tuning grid. We
+did not compare TROP with other modern estimators for a staggered
+design.
 
 ### General designs assume no carryover
 
@@ -111,6 +156,9 @@ These limits apply to fasttrop 0.1.0:
   bootstrap use only a small number of `NA` cells.
 - The equations come from arXiv version 3 of the paper. A line-by-line
   comparison with the journal version is not complete.
+- Our simulations with a staggered design have 60 units, four cohorts,
+  and one tuning grid. We did not compare TROP with other modern
+  estimators on real data.
 - We ran the validation scripts and the benchmark scripts only on
   Windows. GitHub Actions runs `R CMD check` on Linux, macOS, and
   Windows.
@@ -123,13 +171,18 @@ These limits apply to fasttrop 0.1.0:
     [`trop_simulate()`](https://farach.github.io/fasttrop/reference/trop_simulate.md)
     makes a simple panel. For a real check, the simulation must copy the
     patterns of your own data.
-2.  Compare TROP with TWFE. The article [How to read your
+2.  Compare TROP with TWFE imputation. The article [How to read your
     results](https://farach.github.io/fasttrop/articles/read-your-results.md)
     shows how.
-3.  Make sure that the design that fasttrop reports is the design that
+3.  In a staggered design, also compare TROP with a modern estimator
+    from another package. [Hull
+    (2026)](https://arxiv.org/abs/2610.39995) recommends this comparison
+    for each application. fasttrop does not have an estimator that
+    averages the DiD estimates of each cohort and period.
+4.  Make sure that the design that fasttrop reports is the design that
     you expect.
-4.  Use enough bootstrap draws for the final result. The default is 200.
-5.  Report the method, the tuning parameters, the number of treated
+5.  Use enough bootstrap draws for the final result. The default is 200.
+6.  Report the method, the tuning parameters, the number of treated
     units, the number of bootstrap draws, and the type of interval.
-6.  With few treated units, use the interval with care, and say so in
+7.  With few treated units, use the interval with care, and say so in
     your report.
