@@ -12,12 +12,14 @@
 #                  units. The theory for Algorithm 3 of the paper is for a
 #                  large number of treated units.
 #   Simulation B:  as A, but the trend loading selects the treated units.
-#                  Thus, the treated units have a different trend, and two-way
-#                  fixed effects (TWFE) has a bias. This simulation measures
+#                  Thus, the treated units have a different trend, and
+#                  TWFE imputation has a bias. This simulation measures
 #                  how much of this bias TROP removes.
 #
 # Methods:
-#   - TWFE (lambda = (0, 0, Inf)) with the same unit bootstrap
+#   - TWFE imputation (lambda = (0, 0, Inf)) with the same unit bootstrap.
+#     The label in the saved files is "twfe". In a block design, the estimate
+#     is the same as the estimate of a conventional TWFE regression.
 #   - The local method, with tuning by the leave-one-out criterion on 80
 #     sampled untreated cells
 #   - The global method, with tuning by placebo cross-validation on 50 sets

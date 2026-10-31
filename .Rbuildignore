@@ -8,6 +8,7 @@
 ^\.gitattributes$
 ^inst/bench/panel_.*\.csv$
 ^inst/validation/known-truth-draws-.*\.csv$
+^inst/validation/staggered-draws-.*\.csv$
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^_pkgdown\.yml$

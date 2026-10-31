@@ -64,8 +64,12 @@ designs. The triple robustness proof is only for a block design.
   gives a warning message below five treated units.
 - The global method works only for a block design.
 - The package cannot use covariates.
-- In our simulation with larger trends for the treated units, TROP reduced the
-  bias, but some bias stayed.
+- In our simulations with larger trends for the treated units, TROP reduced the
+  bias, but some bias stayed. In a staggered design, the bias was 20% smaller
+  than the bias of TWFE imputation.
+- Our simulations with a staggered design have 60 units, four cohorts, and one
+  tuning grid. We did not compare TROP with other modern estimators on real
+  data.
 - fasttrop follows arXiv version 3 of the paper. A line-by-line check against
   the journal version is not complete.
 

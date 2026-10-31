@@ -34,6 +34,31 @@ small_panel <- function(seed = 1, n_units = 14, n_periods = 10, n_treated = 5, n
   list(data = sim, Y = matrix(sim$y, n_units, n_periods), W = matrix(sim$d, n_units, n_periods))
 }
 
+# The panel in long format with the columns y, unit, time, and w, for lm().
+long_panel <- function(Y, W) {
+  data.frame(y = as.vector(Y), unit = factor(rep(seq_len(nrow(Y)), ncol(Y))),
+             time = factor(rep(seq_len(ncol(Y)), each = nrow(Y))), w = as.vector(W))
+}
+
+# A staggered panel without noise. The outcome without the treatment is the sum
+# of a unit effect and a period effect. Thus, parallel trends hold. Three
+# cohorts of three units start the treatment in periods 5, 7, and 9, and three
+# units are never treated. The effect is larger for an early cohort, and it
+# grows with the number of periods since the start.
+staggered_panel <- function() {
+  n_periods <- 12L
+  start <- c(rep(c(5, 7, 9), each = 3), rep(n_periods + 1, 3))
+  delta <- c(rep(c(2.5, 1.5, 0.5), each = 3), rep(0, 3))
+  n_units <- length(start)
+  period <- matrix(rep(seq_len(n_periods), each = n_units), n_units, n_periods)
+  W <- (period >= start) * 1L
+  effect <- W * delta * (1 + 0.5 * (period - start))
+  alpha <- seq_len(n_units) / 3
+  gamma <- c(0, 0.4, 0.1, 0.9, 0.5, 1.2, 0.8, 1.5, 1.1, 1.9, 1.4, 2.2)
+  Y <- outer(alpha, rep(1, n_periods)) + outer(rep(1, n_units), gamma) + effect
+  list(Y = Y, W = W, effect = effect, att = mean(effect[W == 1L]))
+}
+
 # Evaluate expr and return the messages of all its warnings.
 collect_warnings <- function(expr) {
   msgs <- character()

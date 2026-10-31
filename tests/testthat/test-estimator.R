@@ -16,6 +16,29 @@ test_that("lambda = (0, 0, Inf) reproduces two-way fixed effects imputation", {
   }
 })
 
+test_that("TWFE imputation equals a conventional TWFE regression in a balanced block design", {
+  p <- small_panel(seed = 3)
+  reg <- stats::coef(stats::lm(y ~ w + unit + time, data = long_panel(p$Y, p$W)))[["w"]]
+  for (method in c("local", "global")) {
+    fit <- trop_matrix(p$Y, p$W, method = method, lambda = c(time = 0, unit = 0, nn = Inf),
+                       se = "none", control = tight_control())
+    expect_equal(fit$estimate, reg, tolerance = 1e-8, label = paste(method, "ATT"))
+  }
+})
+
+test_that("TWFE imputation recovers the effects in a staggered design, but a regression does not", {
+  p <- staggered_panel()
+  expect_warning(
+    fit <- trop_matrix(p$Y, p$W, lambda = c(time = 0, unit = 0, nn = Inf), se = "none",
+                       control = tight_control()),
+    "proof only for a block design"
+  )
+  expect_equal(fit$estimate, p$att, tolerance = 1e-8)
+  expect_equal(fit$tau[p$W == 1], p$effect[p$W == 1], tolerance = 1e-8)
+  reg <- stats::coef(stats::lm(y ~ w + unit + time, data = long_panel(p$Y, p$W)))[["w"]]
+  expect_gt(abs(reg - p$att), 1)
+})
+
 test_that("local weights follow the paper's definition (independent R check)", {
   p <- small_panel(seed = 5)
   Y <- p$Y

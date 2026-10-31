@@ -20,18 +20,24 @@ Key points
   fasttrop and of the Python package `diff-diff` differ by at most 4e-8.
 - The difference from the Python package of the authors is larger, but it is
   still less than 3e-5. It comes from the less accurate solver of that package.
-- With each change to the code, 472 test expectations run on six platforms.
-- In simulations with a known effect, TROP had an error 44% to 62% smaller
-  than the error of TWFE. This result is for a random selection of the
-  treated units.
-- In a simulation that selected treated units with large trends, TROP reduced
-  the bias, but some bias stayed.
+- With each change to the code, 478 test expectations run on six platforms.
+- With a block design and random selection of the treated units, TROP had an
+  error 44% to 62% smaller than TWFE imputation.
+- In a block-design simulation that selected treated units with large trends,
+  TROP reduced the bias, but some bias stayed.
+- In a staggered design with effects that differ between cohorts, a
+  conventional TWFE regression had a bias of -0.36. TWFE imputation and TROP
+  local had biases of -0.005 and -0.006.
+- With parallel trends in a staggered design, TROP local had an RMSE 4% larger
+  than TWFE imputation.
+- With different trends in a staggered design, TROP local had a bias 20%
+  smaller than TWFE imputation. But a large bias stayed.
 :::
 
 We checked fasttrop in three ways. First, we compared its results with other
 implementations of TROP. Second, tests examine the tuning and the bootstrap.
 Third, simulations with a known effect show how well the estimates and the
-intervals work.
+intervals work. They use a block design and a staggered design.
 
 ## Agreement with other implementations
 
@@ -44,9 +50,9 @@ fixed versions:
   method for a block design.
 
 The comparison used four small test panels and five sets of fixed tuning
-parameters. The sets include TWFE, weighted TWFE, matrix completion, and two
-sets for the full TROP estimator. One panel has a staggered design, so it has
-no global estimate.
+parameters. The sets include TWFE imputation, weighted TWFE imputation, matrix
+completion, and two sets for the full TROP estimator. One panel has a
+staggered design, so it has no global estimate.
 
 ```{r agreement-fig, fig.asp = 0.42, fig.cap = "The absolute difference between the ATT of fasttrop and the ATT of each reference implementation. Each dot is one test panel with one set of tuning parameters. The axis has a log scale.", fig.alt = "A dot chart with a log scale from 1e-14 to 1e-4. For the local and global methods compared with diff-diff, all dots are below 1e-7. For the global method compared with the package of the authors, the dots go up to 2.5e-5."}
 att <- val("oracle-att-comparison.csv")
@@ -106,20 +112,24 @@ not examine:
   the tuning parameters again.
 - The weights of the local method are equal to an independent R calculation
   of the formula in the paper.
-- With `lambda = c(time = 0, unit = 0, nn = Inf)`, the result is equal to
-  imputation with TWFE.
+- With `lambda = c(time = 0, unit = 0, nn = Inf)`, the result is equal to TWFE
+  imputation.
+- In a block design with no `NA` outcomes, TWFE imputation is equal to the
+  result of a conventional TWFE regression. In a staggered design with effects
+  that differ between cohorts, a test shows that the two results are
+  different.
 - The number of threads does not change the results. With a seed, the results
   are the same in each run.
 
-The test suite has 472 expectations. GitHub Actions runs it with
+The test suite has 478 expectations. GitHub Actions runs it with
 `R CMD check --as-cran` on six platforms: Linux with four versions of R, macOS,
 and Windows.
 
-## Simulations with a known effect
+## Simulations with a known effect in a block design
 
 A simulation makes many panels with a known effect. Then it measures how near
-the estimates are to the truth. We used three simulations. Simulations A and B
-have 200 panels each, and simulation A2 has 100 panels.
+the estimates are to the truth. We used three simulations with a block design.
+Simulations A and B have 200 panels each, and simulation A2 has 100 panels.
 
 In each panel, the true effect is 1 for each treated cell. The untreated
 outcomes have unit effects, period effects, a factor with a linear trend, a
@@ -134,35 +144,36 @@ period.
 
 We compared three estimators:
 
-- TWFE.
+- TWFE imputation. In a block design with no `NA` outcomes, it gives the same
+  estimate as a conventional TWFE regression.
 - The local method of TROP, with the leave-one-out criterion on 80 sampled
   cells.
 - The global method of TROP, with placebo cross-validation on 50 sets.
 
 The tuning grid had four values for each parameter. All three estimators used
-the same panels. The bootstrap used 200 draws for TWFE and for the global
-method, and 100 draws for the local method.
+the same panels. The bootstrap used 200 draws for TWFE imputation and for the
+global method, and 100 draws for the local method.
 
 ```{r sims}
 sims <- rbind(val("known-truth-summary-A.csv"), val("known-truth-summary-A2.csv"),
               val("known-truth-summary-B.csv"))
 sims$method <- factor(sims$method, levels = c("twfe", "local", "global"),
-                      labels = c("TWFE", "TROP local", "TROP global"))
+                      labels = c("TWFE imputation", "TROP local", "TROP global"))
 sims$simulation <- factor(sims$design, levels = c("A", "A2", "B"),
                           labels = c("A: 10 of 40 units,\nrandom selection,\n200 panels",
                                      "A2: 30 of 80 units,\nrandom selection,\n100 panels",
                                      "B: 10 of 40 units,\nselection on the trend,\n200 panels"))
-method_cols <- c("TWFE" = ft_col[["coral"]], "TROP local" = ft_col[["teal_light"]],
+method_cols <- c("TWFE imputation" = ft_col[["coral"]], "TROP local" = ft_col[["teal_light"]],
                  "TROP global" = ft_col[["teal"]])
 ```
 
-```{r rmse-fig, fig.asp = 0.5, fig.cap = "The root mean square error (RMSE) of each estimator in each simulation. A smaller RMSE is better.", fig.alt = "A bar chart in three panels. In simulation A, the RMSE is 0.75 for TWFE, 0.30 for TROP local, and 0.29 for TROP global. In simulation A2, it is 0.31, 0.17, and 0.16. In simulation B, it is 1.37, 0.72, and 0.46."}
+```{r rmse-fig, fig.asp = 0.5, fig.cap = "The root mean square error (RMSE) of each estimator in each simulation. A smaller RMSE is better.", fig.alt = "A bar chart in three panels. In simulation A, the RMSE is 0.75 for TWFE imputation, 0.30 for TROP local, and 0.29 for TROP global. In simulation A2, it is 0.31, 0.17, and 0.16. In simulation B, it is 1.37, 0.72, and 0.46."}
 ggplot(sims, aes(method, rmse, fill = method)) +
   geom_col(width = 0.7) +
   geom_text(aes(label = sprintf("%.2f", rmse)), vjust = -0.5, size = 3.8) +
   facet_wrap(~simulation, nrow = 1) +
   scale_fill_manual(values = method_cols, guide = "none") +
-  scale_x_discrete(labels = c("TWFE", "TROP\nlocal", "TROP\nglobal")) +
+  scale_x_discrete(labels = c("TWFE\nimputation", "TROP\nlocal", "TROP\nglobal")) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
   labs(x = NULL, y = "RMSE") +
   theme(panel.grid.major.x = element_blank(), panel.spacing = unit(1.2, "lines"),
@@ -171,14 +182,14 @@ ggplot(sims, aes(method, rmse, fill = method)) +
 
 With a random selection of the treated units (simulations A and A2), all three
 estimators have small biases. The RMSE of TROP is 44% to 62% less than the
-RMSE of TWFE. Thus, on average, TROP gives estimates that are nearer to the
-truth. In simulation A, the local method was nearer to the truth than TWFE in
-170 of 200 panels.
+RMSE of TWFE imputation. Thus, on average, TROP gives estimates that are
+nearer to the truth. In simulation A, the local method was nearer to the truth
+than TWFE imputation in 170 of 200 panels.
 
 In simulation B, the selection favors the units with the largest trends. TWFE
-has a large bias. TROP removes approximately half of this bias with the local
-method and two thirds with the global method, but some bias stays. The article
-[What TROP can and cannot do](limits.html) explains why.
+imputation has a large bias. TROP removes approximately half of this bias with
+the local method and two thirds with the global method, but some bias stays.
+The article [What TROP can and cannot do](limits.html) explains why.
 
 ```{r coverage-fig, fig.asp = 0.5, fig.cap = "The coverage of the 95% intervals: the share of panels in which the interval contains the true effect. The dashed line is the target of 95%. The bars show two Monte Carlo standard errors.", fig.alt = "A dot chart in three panels with the normal interval and the percentile interval for each estimator. In simulations A and A2, the coverage of TROP is between 0.89 and 0.99. In simulation B, the coverage is between 0.39 and 0.70 for all estimators."}
 cov <- rbind(
@@ -208,6 +219,267 @@ of only 89% in simulation A. For this reason, the normal interval is the
 default. In simulation A2, the global interval has a coverage of 99%, so it is
 wider than necessary. In simulation B, the bias makes the coverage of all
 intervals too low.
+
+## Simulations with a staggered design
+
+In a staggered design, the treated units start the treatment in different
+periods. In this design, a conventional TWFE regression can give negative
+weights to the effects in some treated cells.
+[Hull (2026)](https://arxiv.org/abs/2610.39995) compares this regression with
+two modern estimators in 1,346 specifications from 108 papers in ten economics
+journals. One of the modern estimators is imputation. The study does not
+examine TROP.
+
+We made three simulations with a staggered design and a known effect.
+Simulation C has one effect for all treated cells. Simulation D tests the
+problem of the regression: effects that differ between cohorts. Simulation E
+adds trends that differ between the cohorts.
+
+These simulations do not repeat the study of Hull, because they use simulated
+data. The theory of the paper is for a block design, so they do not test the
+theory. They measure the bias, the error, and the coverage of the intervals.
+
+```{r stag-data}
+stag <- rbind(val("staggered-summary-C.csv"), val("staggered-summary-D.csv"),
+              val("staggered-summary-E.csv"))
+stag$method <- factor(stag$method, levels = c("twfe_regression", "twfe_imputation", "local"),
+                      labels = c("TWFE regression", "TWFE imputation", "TROP local"))
+stag$simulation <- factor(stag$design, levels = c("C", "D", "E"),
+                          labels = c("C: one effect,\nparallel trends",
+                                     "D: effects differ,\nparallel trends",
+                                     "E: effects differ,\ntrends differ"))
+stag_cols <- c("TWFE regression" = ft_col[["ink"]], "TWFE imputation" = ft_col[["coral"]],
+               "TROP local" = ft_col[["teal"]])
+sv <- function(design, method, col) stag[[col]][stag$design == design & stag$method == method]
+sg <- function(design, method, col, digits = 2) {
+  sprintf(paste0("%.", digits, "f"), sv(design, method, col))
+}
+pct <- function(x) sprintf("%.1f%%", 100 * x)
+stag_alt <- function(what, fmt) {
+  parts <- vapply(c("C", "D", "E"), function(d) {
+    values <- vapply(levels(stag$method), function(m) fmt(sv(d, m, what)), "")
+    sprintf("In simulation %s, it is %s for TWFE regression, %s for TWFE imputation, and %s for TROP local.",
+            d, values[1], values[2], values[3])
+  }, "")
+  paste(parts, collapse = " ")
+}
+alt_bias <- paste("A dot chart in three panels, one for each simulation. It shows the bias of each estimator.",
+                  stag_alt("bias", function(x) sprintf("%.2f", x)))
+alt_coverage <- paste("A dot chart in three panels, one for each simulation. It shows the coverage of the",
+                      "95% normal interval of each estimator. The target is 95%.",
+                      stag_alt("coverage_normal", pct))
+
+w <- val("staggered-twfe-weights.csv")
+delta <- c("5" = 0.8, "8" = 0.6, "11" = 0.4, "14" = 0.2)
+w$effect <- delta[as.character(w$cohort_start)] + 0.1 * w$periods_since_start
+neg <- w[w$weight < 0, ]
+weighted_mean <- sum(w$weight * w$effect) / sum(w$weight)
+weight_bias <- weighted_mean - 1
+trend_part <- sv("E", "TWFE regression", "bias") - weight_bias
+less_e <- function(col) {
+  round(100 * (1 - sv("E", "TROP local", col) / sv("E", "TWFE imputation", col)))
+}
+e_rows <- stag$design == "E" & stag$method != "TWFE regression"
+e_cover_n <- round(stag$reps[1] * max(stag$coverage_normal[e_rows],
+                                      stag$coverage_percentile[e_rows]))
+others <- w$weight[w$cohort_start != min(w$cohort_start)]
+alt_weights <- sprintf(paste("A bar chart in four panels, one for each cohort. For the cohort that",
+                             "starts in period 5, the weight is %.1f in the first three periods and",
+                             "%.2f in the last three periods. For the other cohorts, the weights are",
+                             "between %.2f and %.2f. The dashed line is the weight 1 of TWFE",
+                             "imputation."),
+                       max(w$weight), min(w$weight), min(others), max(others))
+```
+
+Each panel has 60 units and 16 periods. Four cohorts of 12 units start the
+treatment in periods 5, 8, 11, and 14, and stay treated. The 12 other units are
+never treated. Thus, each panel has `r stag$cells[1]` treated cells. Each
+simulation has `r stag$reps[1]` panels.
+
+| Simulation | Effect in the treated cells | Trends of the untreated outcomes |
+|---|---|---|
+| C | 1 | Parallel |
+| D | 0.8, 0.6, 0.4, or 0.2 for the four cohorts, plus 0.1 for each period since the start | Parallel |
+| E | The same as in D | Different between the cohorts |
+
+In simulations D and E, the effect is between `r min(w$effect)` and
+`r max(w$effect)`. Its mean over the treated cells is `r mean(w$effect)`.
+In each simulation, the truth is the mean of the effects in the treated cells.
+
+In simulation E, the untreated outcomes also have the two factors of simulation
+A. The score of a unit is its loading on the linear trend plus a random number.
+The units with the largest scores start first. The 12 units with the smallest
+scores are never treated. Thus, the trends of the cohorts differ.
+
+We compared three estimators on the same panels:
+
+- A conventional TWFE regression. It has unit effects, period effects, and one
+  coefficient for the treatment. It uses all cells. Its standard error uses one
+  cluster for each unit.
+- TWFE imputation. It fits unit effects and period effects to the untreated
+  cells. Then it takes the mean of the estimated effects in the treated cells.
+- The local method of TROP. It has the same tuning grid and the same
+  cross-validation as the simulations above.
+
+In a block design with no `NA` outcomes, the regression and TWFE imputation
+give the same estimate. In a staggered design, they can differ. The regression
+gives its own weights to the treated cells. The two other estimators give the
+weight 1 to each treated cell.
+
+The global method is only for a block design, so we did not use it. The
+bootstrap had 200 draws for TWFE imputation and 100 draws for the local method.
+It kept the tuning parameters fixed. The regression has a normal interval only.
+
+### The weights of the regression
+
+With parallel trends, the regression estimates a weighted mean of the effects in
+the treated cells. The weights depend only on the start periods of the cohorts.
+
+```{r stag-weights, fig.asp = 0.6, fig.cap = "The weight of the regression on the treated cells. Each bar is one cohort in one period. The dashed line is the weight 1 of TWFE imputation. The mean weight is 1.", fig.alt = alt_weights}
+w$cohort <- factor(w$cohort_start, levels = c(5, 8, 11, 14),
+                   labels = paste("Cohort that starts in period", c(5, 8, 11, 14)))
+w$sign <- factor(ifelse(w$weight < 0, "Negative weight", "Positive weight"),
+                 levels = c("Positive weight", "Negative weight"))
+ggplot(w, aes(period, weight, fill = sign)) +
+  geom_hline(yintercept = 0, colour = ft_col[["muted"]], linewidth = 0.4) +
+  geom_hline(yintercept = 1, linetype = "22", colour = ft_col[["muted"]]) +
+  geom_col(width = 0.8) +
+  facet_wrap(~cohort, nrow = 2) +
+  scale_fill_manual(values = c("Positive weight" = ft_col[["teal"]],
+                               "Negative weight" = ft_col[["coral"]])) +
+  scale_x_continuous(breaks = c(5, 8, 11, 14)) +
+  labs(x = "Period", y = "Weight of the regression") +
+  theme(panel.grid.major.x = element_blank(), panel.spacing = unit(1.2, "lines"))
+```
+
+In `r nrow(neg)` of the `r nrow(w)` groups, the weight is negative. These are the
+periods `r min(neg$period)` to `r max(neg$period)` of the cohort that starts in
+period `r unique(neg$cohort_start)`. In simulations D and E, these cells have the
+largest effects of the design. With these weights, the weighted mean of the
+effects is `r sprintf("%.2f", weighted_mean)`, and the true mean is 1.
+
+### The results
+
+The table has the results. The bias has its Monte Carlo standard error in
+parentheses. The column "SD" is the standard deviation of the estimates over the
+panels, and "Mean SE" is the mean of the standard errors. The last two columns
+are the coverage of the 95% intervals.
+
+```{r stag-table}
+tab <- data.frame(
+  Simulation = as.character(stag$design),
+  Estimator = as.character(stag$method),
+  `Bias (MC SE)` = sprintf("%.3f (%.3f)", stag$bias, stag$mc_se_bias),
+  SD = sprintf("%.3f", stag$sd),
+  `Mean SE` = sprintf("%.3f", stag$mean_se),
+  RMSE = sprintf("%.3f", stag$rmse),
+  `Normal interval` = pct(stag$coverage_normal),
+  `Percentile interval` = ifelse(is.na(stag$coverage_percentile), "None",
+                                 pct(stag$coverage_percentile)),
+  check.names = FALSE
+)
+tab$Simulation[duplicated(tab$Simulation)] <- ""
+knitr::kable(tab, align = c("l", "l", "r", "r", "r", "r", "r", "r"))
+```
+
+```{r stag-bias-fig, fig.asp = 0.5, fig.cap = "The bias of each estimator. The number at the right of each row is the bias. The true effect is the mean of the effects in the treated cells. The bars show two Monte Carlo standard errors.", fig.alt = alt_bias}
+lo <- min(stag$bias - 2 * stag$mc_se_bias)
+hi <- max(stag$bias + 2 * stag$mc_se_bias)
+span <- hi - lo
+ggplot(stag, aes(bias, method, colour = method)) +
+  geom_vline(xintercept = 0, colour = ft_col[["muted"]], linewidth = 0.5) +
+  geom_errorbarh(aes(xmin = bias - 2 * mc_se_bias, xmax = bias + 2 * mc_se_bias),
+                 height = 0.25, linewidth = 0.7) +
+  geom_point(size = 3.4) +
+  geom_text(aes(x = hi + 0.07 * span, label = sprintf("%.2f", bias)),
+            hjust = 0, size = 3.8, show.legend = FALSE) +
+  facet_wrap(~simulation, nrow = 1) +
+  scale_colour_manual(values = stag_cols, guide = "none") +
+  scale_x_continuous(limits = c(lo - 0.04 * span, hi + 0.46 * span), breaks = c(0, 0.5, 1)) +
+  labs(x = "Bias", y = NULL) +
+  theme(panel.grid.major.y = element_blank(), panel.spacing = unit(2.2, "lines"),
+        strip.text = element_text(size = 11, lineheight = 1.1))
+```
+
+In simulation C, the three estimators have small biases. Each bias is less than
+two Monte Carlo standard errors from zero. The regression has the smallest
+standard deviation. Its model is correct in simulation C, and it uses the
+treated cells in the fit.
+
+In simulation D, the bias of the regression is `r sg("D", "TWFE regression", "bias")`.
+Thus, its mean estimate is `r pct(1 + sv("D", "TWFE regression", "bias"))` of the
+true effect. Its 95% interval contains the truth in
+`r round(sv("D", "TWFE regression", "coverage_normal") * stag$reps[1])` of the
+`r stag$reps[1]` panels. TWFE imputation and the local method have the same
+biases as in simulation C. They use only the untreated cells in the fit, and the
+panels have the same noise in both simulations.
+
+In simulation E, the biases of TWFE imputation and of the local method are
+large. They are `r sg("E", "TWFE imputation", "bias")` and
+`r sg("E", "TROP local", "bias")`, and the true effect is 1. The local method has
+a bias `r less_e("bias")`% smaller and an RMSE `r less_e("rmse")`% smaller than
+TWFE imputation. But the mean estimate of the local method is
+`r sprintf("%.1f", 1 + sv("E", "TROP local", "bias"))` times the true effect.
+
+In simulation E, the regression has the smallest bias,
+`r sg("E", "TWFE regression", "bias")`. This result does not show an advantage of
+the regression. Its bias has two parts. The weights give
+`r sprintf("%.2f", weight_bias)`, as in simulation D. The different trends add
+approximately `r sprintf("%.2f", trend_part)`. The two parts have opposite signs,
+so they partly cancel, but in another design they can have the same sign.
+
+```{r stag-coverage-fig, fig.asp = 0.5, fig.cap = "The coverage of the 95% intervals: the share of panels in which the interval contains the true effect. The dashed line is the target of 95%. The bars show two Monte Carlo standard errors.", fig.alt = alt_coverage}
+cov <- rbind(
+  data.frame(stag[, c("simulation", "method")], interval = "Normal interval",
+             coverage = stag$coverage_normal, se = stag$mc_se_normal),
+  data.frame(stag[, c("simulation", "method")], interval = "Percentile interval",
+             coverage = stag$coverage_percentile, se = stag$mc_se_percentile)
+)
+cov <- cov[!is.na(cov$coverage), ]
+ggplot(cov, aes(coverage, method, colour = interval, shape = interval)) +
+  geom_vline(xintercept = 0.95, linetype = "22", colour = ft_col[["muted"]]) +
+  geom_errorbarh(aes(xmin = pmax(coverage - 2 * se, 0), xmax = pmin(coverage + 2 * se, 1)),
+                 height = 0.2, position = position_dodge(width = 0.55)) +
+  geom_point(size = 3, position = position_dodge(width = 0.55)) +
+  facet_wrap(~simulation, nrow = 1) +
+  scale_colour_manual(values = c("Normal interval" = ft_col[["teal"]],
+                                 "Percentile interval" = ft_col[["coral"]])) +
+  scale_shape_manual(values = c("Normal interval" = 16, "Percentile interval" = 17)) +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1), labels = c("0", "0.5", "1"),
+                     expand = expansion(add = 0.04)) +
+  labs(x = "Coverage (the dashed line is 0.95)", y = NULL) +
+  theme(panel.grid.major.y = element_blank(), panel.spacing = unit(2.2, "lines"),
+        strip.text = element_text(size = 11, lineheight = 1.1))
+```
+
+In simulation D, the intervals of TWFE imputation and of the local method are
+wider than necessary. The mean standard error of TWFE imputation is
+`r sg("D", "TWFE imputation", "mean_se", 3)`, but the standard deviation of its
+estimates is `r sg("D", "TWFE imputation", "sd", 3)`. The coverage of its normal
+interval is `r pct(sv("D", "TWFE imputation", "coverage_normal"))`, and the
+coverage of its percentile interval is
+`r pct(sv("D", "TWFE imputation", "coverage_percentile"))`. The local method has
+the same pattern.
+
+We think that the bootstrap causes this result. It resamples the treated units,
+so the number of units in each cohort changes in each draw. The effect differs
+between the cohorts, so the mean effect also changes. Each simulated panel has
+12 units in each cohort. We did not test this cause in a saved simulation.
+
+In simulation E, the intervals of TWFE imputation and of the local method
+contain the true effect in at most `r e_cover_n` of the `r stag$reps[1]` panels.
+The bias is large compared with the standard deviation of the estimates, which
+is `r sg("E", "TWFE imputation", "sd")` and `r sg("E", "TROP local", "sd")`. The
+normal interval of the regression has a coverage of
+`r pct(sv("E", "TWFE regression", "coverage_normal"))`.
+
+These simulations have limits. They use one design with 60 units, 16 periods,
+and four cohorts. They also use one tuning grid. The noise is independent
+between the cells, but the noise in real panels can have correlation over time.
+
+We did not test the other modern estimator of Hull. It averages the DiD
+estimates of each cohort and period. We also did not compare TROP with a modern
+estimator on real data. Hull recommends this comparison for each application.
 
 ## The scripts and the data
 

@@ -159,9 +159,17 @@ Tuning parameters
 :   The three numbers that control TROP: `time`, `unit`, and `nn`.
     Cross-validation selects them, or you can set them.
 
+TWFE imputation
+:   A method with two steps. First, it fits an effect for each unit and an
+    effect for each period to the untreated cells only. Second, it uses this
+    model to calculate the outcome without the treatment for each treated
+    cell. TROP with equal weights and no low-rank term gives the same result.
+
 Two-way fixed effects (TWFE)
-:   A model with an effect for each unit and an effect for each period. TROP
-    with equal weights and no low-rank term gives the same result as TWFE.
+:   A model with an effect for each unit and an effect for each period. A
+    conventional TWFE regression fits this model to all cells, with one
+    coefficient for the treatment. In a staggered design, its result can be
+    different from the result of TWFE imputation.
 
 Unit
 :   One member of the panel, for example a state, a firm, or a person.

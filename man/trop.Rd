@@ -122,6 +122,20 @@ periods are different, but the treatment does not stop. In a general design,
 the treatment stops for one or more units.
 }
 
+\section{TWFE imputation}{
+
+With \code{lambda = c(time = 0, unit = 0, nn = Inf)}, both methods give TWFE
+imputation. This method fits unit effects and period effects to the
+untreated cells only. Then it subtracts the fitted value from the outcome of
+each treated cell.
+
+A conventional TWFE regression is different. It uses all cells, and it has
+one coefficient for the treatment. In a block design with no \code{NA} outcomes,
+the two results are the same. In a staggered design, the results can be
+different if the effects are different between treated cells. The regression
+can give negative weights to some treated cells.
+}
+
 \section{Inference}{
 
 The unit bootstrap of Algorithm 3 of the paper gives the standard error. The

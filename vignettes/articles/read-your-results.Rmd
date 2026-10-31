@@ -137,35 +137,43 @@ the three ideas of TROP:
 | `nn` | The penalty on the low-rank term, which holds the hidden patterns | `Inf` removes the low-rank term |
 
 With `time = 0`, `unit = 0`, and `nn = Inf`, TROP gives the same result as
-two-way fixed effects (TWFE).
+TWFE imputation. This method fits two-way fixed effects (TWFE) to the
+untreated cells only.
 
 The line `Tuning` in the summary gives the criterion, the score of the
 selected values, and the number of grid points that the search examined. A
 smaller score is better. The element `fit$cv$trace` has the score of each grid
 point that the search examined.
 
-## A comparison with TWFE
+## A comparison with TWFE imputation
 
-A fit with TWFE shows how much the three ideas of TROP change the result. To
-get this fit, set the tuning parameters to the TWFE values:
+A fit with TWFE imputation shows how much the three ideas of TROP change the
+result. To get this fit, set the tuning parameters to the TWFE values:
 
 ```{r twfe}
 twfe <- trop(panel, outcome = "y", treatment = "d", unit = "unit", time = "time",
              lambda = c(time = 0, unit = 0, nn = Inf), n_boot = 200, seed = 1)
 rbind(TROP = c(ATT = coef(fit), confint(fit)),
-      TWFE = c(ATT = coef(twfe), confint(twfe)))
+      `TWFE imputation` = c(ATT = coef(twfe), confint(twfe)))
 ```
 
 In this practice panel, the ATT of TROP is `r round(coef(fit), 2)`, and the ATT
-of TWFE is `r round(coef(twfe), 2)`. The true effect is 1. Thus, the estimate of
-TROP differs from the true effect by `r round(abs(coef(fit) - 1), 2)`, and the
-estimate of TWFE differs by `r round(abs(coef(twfe) - 1), 2)`. One panel does
-not show the average bias of either method.
+of TWFE imputation is `r round(coef(twfe), 2)`. The true effect is 1. Thus, the
+estimate of TROP differs from the true effect by
+`r round(abs(coef(fit) - 1), 2)`, and the estimate of TWFE imputation differs
+by `r round(abs(coef(twfe) - 1), 2)`. One panel does not show the average bias
+of either method.
+
+The practice panel has a block design with no `NA` outcomes. Thus, the ATT
+of TWFE imputation is also the treatment coefficient of a conventional TWFE
+regression. In a staggered design, the two results can be different. The
+article [How we checked fasttrop](validation.html) shows an example.
 
 If the two results are very different, examine why. For example, the treated
 units can have a different trend from the untreated units. In our simulation
-B, TWFE had a large bias in this case, and TROP also kept some bias. The
-article [What TROP can and cannot do](limits.html) gives the details.
+B, TWFE imputation had a large bias in this case, and TROP also kept some
+bias. The article [What TROP can and cannot do](limits.html) gives the
+details.
 
 ## Warning messages and errors
 

@@ -116,8 +116,13 @@ draw. The default confidence interval is a normal interval. To get the
 percentile interval of the authors' package, set `ci = "percentile"`.
 
 With `lambda = c(time = 0, unit = 0, nn = Inf)`, both methods give the same
-result as imputation with two-way fixed effects (TWFE). The tests make sure of
-this result.
+result as TWFE imputation. This method fits two-way fixed effects (TWFE) to the
+untreated cells only. The tests make sure of this result.
+
+A conventional TWFE regression is different. It uses all cells, and it has one
+coefficient for the treatment. In a block design with no `NA` outcomes, the
+two results are the same. In a staggered design, they can be different if the
+effects are different between treated cells.
 
 ## Validation
 
@@ -138,17 +143,44 @@ conic solver in that package.
 
 The tests also examine the tuning and the bootstrap. For example, the
 leave-one-out criterion does not use a cell in its own fit, and the number of
-threads does not change the results. The test suite has 472 expectations.
+threads does not change the results. The test suite has 478 expectations.
 
-Monte Carlo simulations with a known effect gave these results:
+Monte Carlo simulations with a known effect and a block design gave these
+results:
 
-- With random selection of the treated units, the root mean square error
-  (RMSE) of TROP was 44% to 62% less than the RMSE of TWFE. The coverage of
-  the normal intervals of TROP was from 92.5% to 99%.
-- When the selection of the treated units used their trend, TWFE had a large
-  bias. TROP removed approximately half of this bias with the local method and
-  two thirds with the global method. But some bias stayed, and the coverage of
-  the intervals was less than 95%.
+- With random selection of the treated units, TROP had a smaller error. The
+  root mean square error (RMSE) of TROP was 44% to 62% less than the RMSE of
+  TWFE imputation. The coverage of the normal intervals of TROP was from 92.5%
+  to 99%.
+- When the selection of the treated units used their trend, TWFE imputation
+  had a large bias. TROP removed approximately half of this bias with the
+  local method and two thirds with the global method. But some bias stayed,
+  and the coverage of the intervals was less than 95%.
+
+Monte Carlo simulations with a staggered design gave these results. In this
+design, a conventional TWFE regression can give negative weights to some
+effects. Hull (2026) compares this regression with two modern estimators in
+real studies. Each simulation had 60 units, four cohorts, and 200 panels. The
+theory of the paper is for a block design, so these simulations do not test the
+theory.
+
+- With one effect in all treated cells and parallel trends, the TWFE
+  regression, TWFE imputation, and TROP local had small biases. The coverage
+  of their normal intervals was from 95.5% to 97.5%.
+- With effects that differed between the cohorts and parallel trends, the TWFE
+  regression had a bias of -0.36. Its 95% interval never contained the true
+  effect. TWFE imputation and TROP local had biases of -0.005 and -0.006. Their
+  intervals were wider than necessary, and their coverage was from 96% to
+  98.5%.
+- With parallel trends, TROP had no gain over TWFE imputation. The RMSE of TROP
+  local was 4% larger.
+- With effects that differed between the cohorts and with different trends, the
+  bias of TWFE imputation was 1.26. The bias of TROP local was 1.01, and the
+  true effect was 1. TROP local had a bias 20% smaller than TWFE imputation,
+  but a large bias stayed. The 95% intervals of both methods contained the true
+  effect in at most 1 of the 200 panels. The TWFE regression had the smallest
+  bias, 0.22. In this result, the errors from its weights and from the trends
+  have opposite signs, so they partly cancel.
 
 The folder `inst/validation` has the scripts, the data, and the saved results
 of the main checks.
@@ -194,13 +226,18 @@ These limits apply to version 0.1.0:
   warning message for a bootstrap with fewer than five treated units.
 - The global method works only for a block design.
 - The package cannot use covariates.
-- In our simulation in which the treated units had larger trends, TROP
-  reduced the bias, but some bias stayed. This is the result of one
-  simulation, not a general limit of the method.
+- In our simulations in which the treated units had larger trends, TROP
+  reduced the bias, but some bias stayed. With the local method, TROP removed
+  approximately half of the bias of TWFE imputation in a block design and 20%
+  in a staggered design. These are the results of two simulations, not a
+  general limit of the method.
 - Outcomes can be `NA`, and the fits do not use these cells. The tests for the
   tuning and for the bootstrap use only a small number of `NA` cells.
 - The equations come from arXiv version 3 of the paper. A line-by-line
   comparison with the journal version is not complete.
+- Our simulations with a staggered design have 60 units, four cohorts, and one
+  tuning grid. We did not compare TROP with other modern estimators on real
+  data.
 - We ran the validation scripts and the benchmark scripts only on Windows.
   GitHub Actions runs `R CMD check` on Linux, macOS, and Windows.
 
@@ -214,6 +251,9 @@ the package, run `citation("fasttrop")`.
 Athey, S., Imbens, G. W., Qu, Z., and Viviano, D. (2026). Triply Robust Panel
 Estimators. *Journal of Applied Econometrics*. doi:10.1002/jae.70061.
 arXiv:2508.21536.
+
+Hull, P. (2026). How Different are Different Differences-in-Differences? A
+Large-Scale Meta-Analysis. arXiv:2610.39995.
 
 The validation used these reference implementations:
 
