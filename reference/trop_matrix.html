@@ -9,7 +9,7 @@ the columns are periods."><meta property="og:image" content="https://farach.gith
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,6 +21,7 @@ the columns are periods."><meta property="og:image" content="https://farach.gith
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-learn" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Learn</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn"><li><a class="dropdown-item" href="../articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -78,7 +79,9 @@ the columns are periods.</p>
 <span>  conf_level <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>  ci <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"normal"</span>, <span class="st">"percentile"</span><span class="op">)</span>,</span>
 <span>  control <span class="op">=</span> <span class="fu"><a href="trop_control.html">trop_control</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  seed <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  X <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  covariate_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"joint"</span>, <span class="st">"residualize"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -159,6 +162,18 @@ to the section Inference.</p></dd>
 <dd><p>An optional integer seed for the sampled cells, the placebo sets,
 and the bootstrap. The function does not change the state of the random
 number generator in the R session.</p></dd>
+
+
+<dt id="arg-x">X<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
+<dd><p>Optional covariates. You can use one of three types. An array has
+the dimensions of <code>Y</code> and one more dimension for the covariates. A matrix
+with the dimensions of <code>Y</code> gives one covariate. A named list can contain
+such matrices. Refer to the section Covariates of <code><a href="trop.html">trop()</a></code>.</p></dd>
+
+
+<dt id="arg-covariate-method">covariate_method<a class="anchor" aria-label="anchor" href="#arg-covariate-method"></a></dt>
+<dd><p>Use <code>"joint"</code> or <code>"residualize"</code>. Refer to the
+section Covariates.</p></dd>
 
 </dl></div>
     <div class="section level2">

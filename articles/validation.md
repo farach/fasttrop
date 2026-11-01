@@ -7,7 +7,7 @@ Key points
 - The difference from the Python package of the authors is larger, but
   it is still less than 3e-5. It comes from the less accurate solver of
   that package.
-- With each change to the code, 478 test expectations run on six
+- With each change to the code, 766 test expectations run on six
   platforms.
 - With a block design and random selection of the treated units, TROP
   had an error 44% to 62% smaller than TWFE imputation.
@@ -94,7 +94,7 @@ does not examine:
 - The number of threads does not change the results. With a seed, the
   results are the same in each run.
 
-The test suite has 478 expectations. GitHub Actions runs it with
+The test suite has 766 expectations. GitHub Actions runs it with
 `R CMD check --as-cran` on six platforms: Linux with four versions of R,
 macOS, and Windows.
 
@@ -342,6 +342,17 @@ We did not test the other modern estimator of Hull. It averages the DiD
 estimates of each cohort and period. We also did not compare TROP with a
 modern estimator on real data. Hull recommends this comparison for each
 application.
+
+## Covariates
+
+The article [Use
+covariates](https://farach.github.io/fasttrop/articles/covariates.md)
+gives the checks of the covariates. In summary:
+
+- On three test panels, fasttrop and an independent solution of Eq. 13
+  with covariates agree to 6.7e-09 or better.
+- In a simulation with a covariate bias after the treatment starts, the
+  bias of TROP local decreased from 1.45 to 0.01 with covariates.
 
 ## The scripts and the data
 

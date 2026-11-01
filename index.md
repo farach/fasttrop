@@ -45,13 +45,18 @@ up to 2.5e-5, the same as the gap between the two Python packages.
 staggered, and general designs. The triple robustness proof is only for
 a block design.
 
+**Covariates** Both methods can use covariates, the term of Section 6.2
+of the paper. Refer to the article [Use
+covariates](https://farach.github.io/fasttrop/articles/covariates.md).
+
 ## Know the limits
 
 - The triple robustness result has a proof only for a block design.
 - The bootstrap interval is reliable only with many treated units.
   fasttrop gives a warning message below five treated units.
 - The global method works only for a block design.
-- The package cannot use covariates.
+- With covariates, the weights do not remove a bias from a wrong
+  covariate coefficient.
 - In our simulations with larger trends for the treated units, TROP
   reduced the bias, but some bias stayed. In a staggered design, the
   bias was 20% smaller than the bias of TWFE imputation.

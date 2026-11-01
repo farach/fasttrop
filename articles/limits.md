@@ -10,7 +10,8 @@ Key points
   reduced the bias, but some bias stayed.
 - In our simulation of a staggered design with larger trends for the
   treated units, TROP reduced the bias by 20%. A large bias stayed.
-- fasttrop cannot use covariates.
+- With covariates, the weights do not remove a bias from a wrong
+  covariate coefficient.
 
 ## What TROP can do
 
@@ -147,9 +148,13 @@ Outcomes can still change over time for other reasons.
 
 ## The limits of this package
 
-These limits apply to fasttrop 0.1.0:
+These limits apply to fasttrop 0.2.0:
 
-- The package cannot use covariates.
+- The paper gives a model with covariates, but not one procedure to
+  calculate their coefficients. fasttrop has two procedures. The global
+  method with covariates is an extension of fasttrop. Refer to the
+  article [Use
+  covariates](https://farach.github.io/fasttrop/articles/covariates.md).
 - The global method works only for a block design, and it must have at
   least two units that are never treated.
 - Outcomes can be `NA`, but the tests for the tuning and for the

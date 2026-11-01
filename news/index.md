@@ -1,5 +1,41 @@
 # Changelog
 
+## fasttrop 0.2.0
+
+### Covariates
+
+- [`trop()`](https://farach.github.io/fasttrop/reference/trop.md) has
+  the new argument `covariates`, and
+  [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  has the new argument `X`. They add the term (X\_{it}’) of Eq. 13 in
+  Section 6.2 of the paper.
+- The new argument `covariate_method` selects how to calculate (). With
+  `"joint"` (the default), each weighted fit calculates () together with
+  the other parts of the model. With `"residualize"`, one TWFE
+  regression on the untreated cells calculates () first.
+- The global method can also use covariates. This is an extension of
+  fasttrop. Section 6.2 of the paper adds covariates to the local
+  method. The Python package from the authors does not have covariates.
+- The result has the new element `covariates` with the coefficients, the
+  method, and the names of the covariates that the fit used.
+- The fixed effects absorb a covariate that does not change in time or
+  does not change between units. The function gives a warning message
+  for such a covariate.
+
+### Validation
+
+- New tests compare the results with covariates with two references. The
+  script `data-raw/oracle_covariates.py` adds the covariate term to the
+  code of the authors and also solves the problem with a second method.
+- The new script `inst/validation/covariates.R` runs a simulation with a
+  known effect and a covariate that is different for the treated units.
+- The new scripts in `inst/validation/stata` compare fasttrop with the
+  Stata package `trop`. They only call that package.
+- The new script `inst/bench/covariate_timings.R` measures the time cost
+  of covariates.
+- The new article “Use covariates” explains the two procedures and the
+  results.
+
 ## fasttrop 0.1.0
 
 This is the first version of the package.

@@ -22,12 +22,12 @@ Estimators.” *Journal of Applied Econometrics*.
     }
 
 Farach A (2026). *fasttrop: Fast Triply Robust Panel Estimators*. R
-package version 0.1.0, <https://farach.github.io/fasttrop/>.
+package version 0.2.0, <https://farach.github.io/fasttrop/>.
 
     @Manual{,
       title = {fasttrop: Fast Triply Robust Panel Estimators},
       author = {Alex Farach},
       year = {2026},
-      note = {R package version 0.1.0},
+      note = {R package version 0.2.0},
       url = {https://farach.github.io/fasttrop/},
     }

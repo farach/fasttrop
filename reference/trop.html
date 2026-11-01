@@ -19,7 +19,7 @@ the treated unit. Time weights decrease with the distance in periods."><meta pro
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,6 +31,7 @@ the treated unit. Time weights decrease with the distance in periods."><meta pro
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-learn" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Learn</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn"><li><a class="dropdown-item" href="../articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -96,7 +97,9 @@ the treated unit. Time weights decrease with the distance in periods.</p>
 <span>  conf_level <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>  ci <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"normal"</span>, <span class="st">"percentile"</span><span class="op">)</span>,</span>
 <span>  control <span class="op">=</span> <span class="fu"><a href="trop_control.html">trop_control</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  seed <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  covariate_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"joint"</span>, <span class="st">"residualize"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -178,6 +181,16 @@ to the section Inference.</p></dd>
 and the bootstrap. The function does not change the state of the random
 number generator in the R session.</p></dd>
 
+
+<dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
+<dd><p>Optional names of numeric covariate columns. Refer to the
+section Covariates.</p></dd>
+
+
+<dt id="arg-covariate-method">covariate_method<a class="anchor" aria-label="anchor" href="#arg-covariate-method"></a></dt>
+<dd><p>Use <code>"joint"</code> or <code>"residualize"</code>. Refer to the
+section Covariates.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -190,6 +203,9 @@ and the confidence interval.</p></li>
 <li><p><code>cv</code>: the results of the cross-validation, or <code>NULL</code> for fixed tuning
 parameters.</p></li>
 <li><p><code>boot</code>: the bootstrap draws.</p></li>
+<li><p><code>covariates</code>: <code>NULL</code> without covariates. Otherwise, a list with the
+coefficients <code>coef</code>, the <code>method</code>, and the names of the covariates that
+the function <code>used</code> and <code>dropped</code>.</p></li>
 <li><p><code>timing</code>: the time in the C code and the total time, in seconds.</p></li>
 </ul></div>
     <div class="section level2">
@@ -259,6 +275,53 @@ regression adjustment. The proof uses fixed weights, and it is only for a
 block design. For a staggered or general design, the function calculates
 the estimator, but the bound has no proof. Thus, the function gives a
 warning message for these designs.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="covariates">Covariates<a class="anchor" aria-label="anchor" href="#covariates"></a></h2>
+
+
+<p>Section 6.2 of the paper adds a covariate term to the model of Eq. 13. The
+model has the fixed effects, the low-rank term, and a linear term
+\(X_{it}'\phi\). Use <code>covariates</code> to give the names of numeric columns. A
+row with an outcome must have finite values for all covariates. For a
+factor, make indicator columns with <code><a href="https://rdrr.io/r/stats/model.matrix.html" class="external-link">stats::model.matrix()</a></code>.</p>
+<p>The paper gives the model, but it does not give one procedure to calculate
+\(\phi\). The function has two procedures:</p><ul><li><p>With <code>covariate_method = "joint"</code>, each weighted fit calculates
+\(\phi\) together with the fixed effects and the low-rank term. This is
+the minimization of Eq. 13. The local method calculates one \(\phi\) for
+each treated cell. The unit weights and the time weights use the outcomes,
+not the outcomes minus \(X'\phi\). The leave-one-out fits and the
+placebo fits also calculate \(\phi\).</p></li>
+<li><p>With <code>covariate_method = "residualize"</code>, the function first calculates
+\(\phi\) with an unweighted TWFE regression on all untreated cells with
+an outcome. Then it uses \(Y^* = Y - \tilde{X}\phi\) for the tuning,
+the weights, and the estimate. In \(\tilde{X}\), the function removes
+the unit effects and the period effects of the untreated cells from
+\(X\). The bootstrap calculates \(\phi\) again for each draw.</p></li>
+</ul><p>Section 6.2 of the paper tunes the estimator after it removes the
+covariates from the outcomes. The procedure <code>"residualize"</code> is one
+interpretation of that text. Usually, it does not give the minimum of
+Eq. 13. Its first step uses all untreated outcomes. Thus, the cells that the
+cross-validation holds out have an effect on \(\phi\).</p>
+<p>The global method with covariates is an extension of fasttrop. The Python
+package from the authors does not have covariates.</p>
+<p>The fixed effects absorb a term \(a_i + b_t\) in a covariate. Thus, the
+results do not change when you add a unit constant or a period constant to a
+covariate.</p>
+<p>The function does not use a covariate that the unit effects, the
+period effects, or other covariates explain completely on the untreated
+cells. For example, a covariate that does not change in time has no effect
+on the estimate. The function gives a warning message for such a covariate.
+In a weighted fit with few untreated cells, a covariate can also have no
+variation. Then, that fit sets its coefficient to 0.</p>
+<p>The element <code>covariates$coef</code> of the result contains \(\phi\) in the
+units of the covariates. For the local method with <code>"joint"</code>, it is the mean
+of the values for the treated cells. This value is only a summary.</p>
+<p>The appendix of the paper gives a bias bound with covariates. This bound
+adds a term: the imbalance of the covariates times the error in \(\phi\).
+Thus, the weights can decrease the bias, but they do not remove the bias
+from a wrong \(\phi\). A covariate that the treatment changes can also
+make a bias. Use only covariates that the treatment does not change.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

@@ -23,7 +23,9 @@ trop_matrix(
   conf_level = 0.95,
   ci = c("normal", "percentile"),
   control = trop_control(),
-  seed = NULL
+  seed = NULL,
+  X = NULL,
+  covariate_method = c("joint", "residualize")
 )
 ```
 
@@ -104,6 +106,18 @@ trop_matrix(
   An optional integer seed for the sampled cells, the placebo sets, and
   the bootstrap. The function does not change the state of the random
   number generator in the R session.
+
+- X:
+
+  Optional covariates. You can use one of three types. An array has the
+  dimensions of `Y` and one more dimension for the covariates. A matrix
+  with the dimensions of `Y` gives one covariate. A named list can
+  contain such matrices. Refer to the section Covariates of
+  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md).
+
+- covariate_method:
+
+  Use `"joint"` or `"residualize"`. Refer to the section Covariates.
 
 ## Value
 

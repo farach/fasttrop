@@ -33,7 +33,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn">
 <li><a class="dropdown-item" href="../articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -134,7 +135,7 @@ follow a hidden pattern more strongly than the untreated units.</p>
 <span><span class="co">#&gt;   Tuning: loocv, score 99.73, 28 grid evaluations</span></span>
 <span><span class="co">#&gt;   Bootstrap: 200 draws (stratified), 0 failed, normal interval</span></span>
 <span><span class="co">#&gt;   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0</span></span>
-<span><span class="co">#&gt;   Time: 22.024 s in total, 22.015 s in the C code (4 threads)</span></span></code></pre></div>
+<span><span class="co">#&gt;   Time: 28.048 s in total, 28.034 s in the C code (4 threads)</span></span></code></pre></div>
 <p>The first lines of the output give the method, the design, and the
 size of the panel. fasttrop finds the design from the treatment column.
 Make sure that the design is the design that you expect. If it is not,

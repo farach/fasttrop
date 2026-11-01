@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -19,6 +19,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-learn" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Learn</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn"><li><a class="dropdown-item" href="../articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -52,6 +53,26 @@
       <small>Source: <a href="https://github.com/farach/fasttrop/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.0" id="fasttrop-020">fasttrop 0.2.0<a class="anchor" aria-label="anchor" href="#fasttrop-020"></a></h2>
+<div class="section level3">
+<h3 id="covariates-0-2-0">Covariates<a class="anchor" aria-label="anchor" href="#covariates-0-2-0"></a></h3>
+<ul><li>
+<code><a href="../reference/trop.html">trop()</a></code> has the new argument <code>covariates</code>, and <code><a href="../reference/trop_matrix.html">trop_matrix()</a></code> has the new argument <code>X</code>. They add the term (X_{it}’) of Eq. 13 in Section 6.2 of the paper.</li>
+<li>The new argument <code>covariate_method</code> selects how to calculate (). With <code>"joint"</code> (the default), each weighted fit calculates () together with the other parts of the model. With <code>"residualize"</code>, one TWFE regression on the untreated cells calculates () first.</li>
+<li>The global method can also use covariates. This is an extension of fasttrop. Section 6.2 of the paper adds covariates to the local method. The Python package from the authors does not have covariates.</li>
+<li>The result has the new element <code>covariates</code> with the coefficients, the method, and the names of the covariates that the fit used.</li>
+<li>The fixed effects absorb a covariate that does not change in time or does not change between units. The function gives a warning message for such a covariate.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="validation-0-2-0">Validation<a class="anchor" aria-label="anchor" href="#validation-0-2-0"></a></h3>
+<ul><li>New tests compare the results with covariates with two references. The script <code>data-raw/oracle_covariates.py</code> adds the covariate term to the code of the authors and also solves the problem with a second method.</li>
+<li>The new script <code>inst/validation/covariates.R</code> runs a simulation with a known effect and a covariate that is different for the treated units.</li>
+<li>The new scripts in <code>inst/validation/stata</code> compare fasttrop with the Stata package <code>trop</code>. They only call that package.</li>
+<li>The new script <code>inst/bench/covariate_timings.R</code> measures the time cost of covariates.</li>
+<li>The new article “Use covariates” explains the two procedures and the results.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="fasttrop-010">fasttrop 0.1.0<a class="anchor" aria-label="anchor" href="#fasttrop-010"></a></h2>
 <p>This is the first version of the package.</p>

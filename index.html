@@ -35,7 +35,7 @@
 
     <a class="navbar-brand me-2" href="index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -49,6 +49,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn">
 <li><a class="dropdown-item" href="articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -119,6 +120,7 @@
 <p><strong>Fast</strong> In our benchmarks with one thread and fixed tuning parameters, fasttrop was 25 to 174 times faster than the Python packages. Times depend on the computer.</p>
 <p><strong>Checked</strong> On four test panels, the local ATTs of fasttrop and <code>diff-diff</code> differed by at most 4e-8. The gap to the authors’ package is up to 2.5e-5, the same as the gap between the two Python packages.</p>
 <p><strong>Three designs</strong> The local method can calculate results for block, staggered, and general designs. The triple robustness proof is only for a block design.</p>
+<p><strong>Covariates</strong> Both methods can use covariates, the term of Section 6.2 of the paper. Refer to the article <a href="articles/covariates.html">Use covariates</a>.</p>
 </div>
 </div>
 <div class="section level2">
@@ -128,7 +130,7 @@
 <li>The triple robustness result has a proof only for a block design.</li>
 <li>The bootstrap interval is reliable only with many treated units. fasttrop gives a warning message below five treated units.</li>
 <li>The global method works only for a block design.</li>
-<li>The package cannot use covariates.</li>
+<li>With covariates, the weights do not remove a bias from a wrong covariate coefficient.</li>
 <li>In our simulations with larger trends for the treated units, TROP reduced the bias, but some bias stayed. In a staggered design, the bias was 20% smaller than the bias of TWFE imputation.</li>
 <li>Our simulations with a staggered design have 60 units, four cohorts, and one tuning grid. We did not compare TROP with other modern estimators on real data.</li>
 <li>fasttrop follows arXiv version 3 of the paper. A line-by-line check against the journal version is not complete.</li>

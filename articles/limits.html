@@ -33,7 +33,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn">
 <li><a class="dropdown-item" href="../articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -111,7 +112,8 @@ units.</li>
 reduced the bias, but some bias stayed.</li>
 <li>In our simulation of a staggered design with larger trends for the
 treated units, TROP reduced the bias by 20%. A large bias stayed.</li>
-<li>fasttrop cannot use covariates.</li>
+<li>With covariates, the weights do not remove a bias from a wrong
+covariate coefficient.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -248,9 +250,12 @@ Outcomes can still change over time for other reasons.</p>
 <div class="section level2">
 <h2 id="the-limits-of-this-package">The limits of this package<a class="anchor" aria-label="anchor" href="#the-limits-of-this-package"></a>
 </h2>
-<p>These limits apply to fasttrop 0.1.0:</p>
+<p>These limits apply to fasttrop 0.2.0:</p>
 <ul>
-<li>The package cannot use covariates.</li>
+<li>The paper gives a model with covariates, but not one procedure to
+calculate their coefficients. fasttrop has two procedures. The global
+method with covariates is an extension of fasttrop. Refer to the article
+<a href="covariates.html">Use covariates</a>.</li>
 <li>The global method works only for a block design, and it must have at
 least two units that are never treated.</li>
 <li>Outcomes can be <code>NA</code>, but the tests for the tuning and

@@ -23,6 +23,12 @@ Read the results of a fit and know the limits of the method.
   What each number in the output of fasttrop means, and what to do when
   fasttrop gives a warning message.
 
+- [Use
+  covariates](https://farach.github.io/fasttrop/articles/covariates.md):
+
+  How fasttrop adds covariates to TROP, the two procedures for the
+  coefficients, and how we checked them.
+
 - [What TROP can and cannot
   do](https://farach.github.io/fasttrop/articles/limits.md):
 

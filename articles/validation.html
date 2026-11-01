@@ -33,7 +33,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-learn">
 <li><a class="dropdown-item" href="../articles/the-big-idea.html">TROP in plain words</a></li>
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
+    <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -107,7 +108,7 @@ most 4e-8.</li>
 <li>The difference from the Python package of the authors is larger, but
 it is still less than 3e-5. It comes from the less accurate solver of
 that package.</li>
-<li>With each change to the code, 478 test expectations run on six
+<li>With each change to the code, 766 test expectations run on six
 platforms.</li>
 <li>With a block design and random selection of the treated units, TROP
 had an error 44% to 62% smaller than TWFE imputation.</li>
@@ -221,7 +222,7 @@ two results are different.</li>
 <li>The number of threads does not change the results. With a seed, the
 results are the same in each run.</li>
 </ul>
-<p>The test suite has 478 expectations. GitHub Actions runs it with
+<p>The test suite has 766 expectations. GitHub Actions runs it with
 <code>R CMD check --as-cran</code> on six platforms: Linux with four
 versions of R, macOS, and Windows.</p>
 </div>
@@ -604,6 +605,18 @@ DiD estimates of each cohort and period. We also did not compare TROP
 with a modern estimator on real data. Hull recommends this comparison
 for each application.</p>
 </div>
+</div>
+<div class="section level2">
+<h2 id="covariates">Covariates<a class="anchor" aria-label="anchor" href="#covariates"></a>
+</h2>
+<p>The article <a href="covariates.html">Use covariates</a> gives the
+checks of the covariates. In summary:</p>
+<ul>
+<li>On three test panels, fasttrop and an independent solution of Eq. 13
+with covariates agree to 6.7e-09 or better.</li>
+<li>In a simulation with a covariate bias after the treatment starts,
+the bias of TROP local decreased from 1.45 to 0.01 with covariates.</li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="the-scripts-and-the-data">The scripts and the data<a class="anchor" aria-label="anchor" href="#the-scripts-and-the-data"></a>
