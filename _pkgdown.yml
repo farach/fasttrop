@@ -62,6 +62,8 @@ navbar:
         href: articles/the-big-idea.html
       - text: How to read your results
         href: articles/read-your-results.html
+      - text: Use covariates
+        href: articles/covariates.html
       - text: What TROP can and cannot do
         href: articles/limits.html
       - text: Glossary
@@ -88,6 +90,7 @@ articles:
   desc: Read the results of a fit and know the limits of the method.
   contents:
   - articles/read-your-results
+  - articles/covariates
   - articles/limits
 - title: The evidence
   desc: See how we checked the results and the speed of the package.

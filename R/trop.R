@@ -63,6 +63,58 @@
 #' the estimator, but the bound has no proof. Thus, the function gives a
 #' warning message for these designs.
 #'
+#' @section Covariates:
+#' Section 6.2 of the paper adds a covariate term to the model of Eq. 13. The
+#' model has the fixed effects, the low-rank term, and a linear term
+#' \eqn{X_{it}'\phi}. Use `covariates` to give the names of numeric columns. A
+#' row with an outcome must have finite values for all covariates. For a
+#' factor, make indicator columns with [stats::model.matrix()].
+#'
+#' The paper gives the model, but it does not give one procedure to calculate
+#' \eqn{\phi}. The function has two procedures:
+#' * With `covariate_method = "joint"`, each weighted fit calculates
+#'   \eqn{\phi} together with the fixed effects and the low-rank term. This is
+#'   the minimization of Eq. 13. The local method calculates one \eqn{\phi} for
+#'   each treated cell. The unit weights and the time weights use the outcomes,
+#'   not the outcomes minus \eqn{X'\phi}. The leave-one-out fits and the
+#'   placebo fits also calculate \eqn{\phi}.
+#' * With `covariate_method = "residualize"`, the function first calculates
+#'   \eqn{\phi} with an unweighted TWFE regression on all untreated cells with
+#'   an outcome. Then it uses \eqn{Y^* = Y - \tilde{X}\phi} for the tuning,
+#'   the weights, and the estimate. In \eqn{\tilde{X}}, the function removes
+#'   the unit effects and the period effects of the untreated cells from
+#'   \eqn{X}. The bootstrap calculates \eqn{\phi} again for each draw.
+#'
+#' Section 6.2 of the paper tunes the estimator after it removes the
+#' covariates from the outcomes. The procedure `"residualize"` is one
+#' interpretation of that text. Usually, it does not give the minimum of
+#' Eq. 13. Its first step uses all untreated outcomes. Thus, the cells that the
+#' cross-validation holds out have an effect on \eqn{\phi}.
+#'
+#' The global method with covariates is an extension of fasttrop. The Python
+#' package from the authors does not have covariates.
+#'
+#' The fixed effects absorb a term \eqn{a_i + b_t} in a covariate. Thus, the
+#' results do not change when you add a unit constant or a period constant to a
+#' covariate.
+#'
+#' The function does not use a covariate that the unit effects, the
+#' period effects, or other covariates explain completely on the untreated
+#' cells. For example, a covariate that does not change in time has no effect
+#' on the estimate. The function gives a warning message for such a covariate.
+#' In a weighted fit with few untreated cells, a covariate can also have no
+#' variation. Then, that fit sets its coefficient to 0.
+#'
+#' The element `covariates$coef` of the result contains \eqn{\phi} in the
+#' units of the covariates. For the local method with `"joint"`, it is the mean
+#' of the values for the treated cells. This value is only a summary.
+#'
+#' The appendix of the paper gives a bias bound with covariates. This bound
+#' adds a term: the imbalance of the covariates times the error in \eqn{\phi}.
+#' Thus, the weights can decrease the bias, but they do not remove the bias
+#' from a wrong \eqn{\phi}. A covariate that the treatment changes can also
+#' make a bias. Use only covariates that the treatment does not change.
+#'
 #' @param data A data frame in long format with one row for each unit and
 #'   period.
 #' @param outcome,treatment,unit,time Column names as strings. The treatment
@@ -93,6 +145,10 @@
 #' @param seed An optional integer seed for the sampled cells, the placebo sets,
 #'   and the bootstrap. The function does not change the state of the random
 #'   number generator in the R session.
+#' @param covariates Optional names of numeric covariate columns. Refer to the
+#'   section Covariates.
+#' @param covariate_method Use `"joint"` or `"residualize"`. Refer to the
+#'   section Covariates.
 #'
 #' @return An object of class `trop`. It is a list with these elements and with
 #'   other elements:
@@ -104,6 +160,9 @@
 #'   * `cv`: the results of the cross-validation, or `NULL` for fixed tuning
 #'     parameters.
 #'   * `boot`: the bootstrap draws.
+#'   * `covariates`: `NULL` without covariates. Otherwise, a list with the
+#'     coefficients `coef`, the `method`, and the names of the covariates that
+#'     the function `used` and `dropped`.
 #'   * `timing`: the time in the C code and the total time, in seconds.
 #'
 #' @references Athey, S., Imbens, G. W., Qu, Z., and Viviano, D. (2026).
@@ -123,13 +182,15 @@ trop <- function(data, outcome, treatment, unit, time,
                  cv_cells = NULL, n_placebo = 200L, placebo_size = 1L, max_cycles = 10L,
                  se = c("bootstrap", "none"), n_boot = 200L,
                  resample = c("stratified", "controls"), conf_level = 0.95,
-                 ci = c("normal", "percentile"), control = trop_control(), seed = NULL) {
+                 ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
+                 covariates = NULL, covariate_method = c("joint", "residualize")) {
   t0 <- Sys.time()
-  pm <- panel_matrices(data, outcome, treatment, unit, time)
+  pm <- panel_matrices(data, outcome, treatment, unit, time, covariates)
   fit <- trop_matrix(pm$Y, pm$W, method = method, lambda = lambda, grid = grid,
                      cv_cells = cv_cells, n_placebo = n_placebo, placebo_size = placebo_size,
                      max_cycles = max_cycles, se = se, n_boot = n_boot, resample = resample,
-                     conf_level = conf_level, ci = ci, control = control, seed = seed)
+                     conf_level = conf_level, ci = ci, control = control, seed = seed,
+                     X = pm$X, covariate_method = covariate_method)
   fit$units <- pm$units
   fit$times <- pm$times
   fit$call <- match.call()

@@ -7,6 +7,10 @@
 #'   column for each period. `NA` shows a cell without an outcome.
 #' @param W A matrix of treatment indicators with the values 0 and 1. It must
 #'   have the same dimensions as `Y`.
+#' @param X Optional covariates. You can use one of three types. An array has
+#'   the dimensions of `Y` and one more dimension for the covariates. A matrix
+#'   with the dimensions of `Y` gives one covariate. A named list can contain
+#'   such matrices. Refer to the section Covariates of [trop()].
 #' @inheritParams trop
 #' @return An object of class `trop`. Refer to [trop()].
 #' @examples
@@ -22,12 +26,14 @@ trop_matrix <- function(Y, W, method = c("local", "global"), lambda = NULL, grid
                         cv_cells = NULL, n_placebo = 200L, placebo_size = 1L, max_cycles = 10L,
                         se = c("bootstrap", "none"), n_boot = 200L,
                         resample = c("stratified", "controls"), conf_level = 0.95,
-                        ci = c("normal", "percentile"), control = trop_control(), seed = NULL) {
+                        ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
+                        X = NULL, covariate_method = c("joint", "residualize")) {
   t0 <- Sys.time()
   plan <- trop_prepare(Y, W, method = method, lambda = lambda, grid = grid, cv_cells = cv_cells,
                        n_placebo = n_placebo, placebo_size = placebo_size, max_cycles = max_cycles,
                        se = se, n_boot = n_boot, resample = resample, conf_level = conf_level,
-                       ci = ci, control = control, seed = seed)
+                       ci = ci, control = control, seed = seed, X = X,
+                       covariate_method = covariate_method)
   fit <- trop_run(plan)
   fit$call <- match.call()
   fit$timing$total_seconds <- as.double(difftime(Sys.time(), t0, units = "secs"))
@@ -47,8 +53,10 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
                          cv_cells = NULL, n_placebo = 200L, placebo_size = 1L, max_cycles = 10L,
                          se = c("bootstrap", "none"), n_boot = 200L,
                          resample = c("stratified", "controls"), conf_level = 0.95,
-                         ci = c("normal", "percentile"), control = trop_control(), seed = NULL) {
+                         ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
+                         X = NULL, covariate_method = c("joint", "residualize")) {
   method <- match.arg(method)
+  covariate_method <- match.arg(covariate_method)
   se <- match.arg(se)
   resample <- match.arg(resample)
   ci <- match.arg(ci)
@@ -61,6 +69,12 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
   if (!is.null(lambda)) lambda <- as_lambda(lambda)
   p <- as_panel_inputs(Y, W)
   design <- trop_design(p$W, p$obs)
+  cov <- NULL
+  Xa <- as_covariate_array(X, p$Y, p$obs)
+  if (!is.null(Xa)) {
+    cov <- prepare_covariates(Xa, p$W, p$obs)
+    cov$method <- covariate_method
+  }
   N <- nrow(p$Y)
   never <- setdiff(seq_len(N), design$treated)
   if (method == "global") {
@@ -91,9 +105,27 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
   rng <- seed_scope(seed)
   on.exit(rng$restore(), add = TRUE)
 
+  # With "residualize", the C code calculates phi once. Then all later steps
+  # use Y - X phi and no covariates, but each bootstrap draw calculates phi
+  # again. With "joint", all fits estimate phi together with the other terms.
+  Xp <- NULL
+  p$Yb <- p$Y
+  Xb <- NULL
+  resid <- FALSE
+  if (!is.null(cov$X)) {
+    Xb <- cov$X
+    if (covariate_method == "residualize") {
+      cov$phi_scaled <- .Call(C_residualize, p$Y, p$W, p$obs, cov$X, unclass(control))
+      p$Y <- subtract_xphi(p$Y, cov$X, cov$phi_scaled)
+      resid <- TRUE
+    } else {
+      Xp <- cov$X
+    }
+  }
+
   cells <- NULL
   sets <- NULL
-  Yc <- oc <- Wz <- NULL
+  Yc <- oc <- Wz <- Xc <- NULL
   init <- NULL
   size <- NA_integer_
   if (is.null(lambda)) {
@@ -114,6 +146,7 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
       Yc <- p$Y[never, , drop = FALSE]
       oc <- p$obs[never, , drop = FALSE]
       Wz <- matrix(0L, nrow(Yc), ncol(Yc))
+      if (!is.null(Xp)) Xc <- Xp[never, , , drop = FALSE]
       sets <- matrix(0L, n_placebo, size)
       for (m in seq_len(n_placebo)) sets[m, ] <- sample.int(length(never), size)
       sets <- sets - 1L
@@ -131,7 +164,8 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
     rows <- rows - 1L
   }
   list(p = p, design = design, never = never, method = method, lambda = lambda, grid = grid,
-       max_cycles = as.integer(max_cycles), cells = cells, Yc = Yc, oc = oc, Wz = Wz,
+       max_cycles = as.integer(max_cycles), cells = cells, Yc = Yc, oc = oc, Wz = Wz, Xc = Xc,
+       X = Xp, Xb = Xb, resid = resid, cov = cov,
        sets = sets, set_size = size, init = init, se = se, rows = rows, resample = resample,
        conf_level = conf_level, ci = ci, control = control, ctrl = unclass(control),
        dimnames = dimnames(Y))
@@ -149,14 +183,14 @@ trop_run <- function(plan) {
   lambda <- plan$lambda
   if (is.null(lambda)) {
     if (plan$method == "local") {
-      res <- .Call(C_local_search, p$Y, p$W, p$obs, plan$grid$time, plan$grid$unit,
+      res <- .Call(C_local_search, p$Y, p$W, p$obs, plan$X, plan$grid$time, plan$grid$unit,
                    plan$grid$nn, plan$cells, plan$max_cycles, ctrl)
       cv <- list(criterion = "loocv", score = res$score, n_evals = res$n_evals,
                  trace = trace_frame(res$trace),
                  n_cells = if (is.null(plan$cells)) sum(p$W == 0L & p$obs == 1L) else length(plan$cells),
                  fixed_point = NA)
     } else {
-      res <- .Call(C_global_search, plan$Yc, plan$oc, plan$Wz, as.integer(design$k), plan$sets,
+      res <- .Call(C_global_search, plan$Yc, plan$oc, plan$Wz, plan$Xc, as.integer(design$k), plan$sets,
                    plan$grid$time, plan$grid$unit, plan$grid$nn, as.double(plan$init),
                    plan$max_cycles, ctrl)
       if (!isTRUE(res$fixed_point)) {
@@ -172,11 +206,11 @@ trop_run <- function(plan) {
   }
 
   if (plan$method == "local") {
-    est <- .Call(C_local_estimate, p$Y, p$W, p$obs, lambda, ctrl)
+    est <- .Call(C_local_estimate, p$Y, p$W, p$obs, plan$X, lambda, ctrl)
     n_skipped <- est$n_skipped
     n_nonconv <- est$n_nonconverged
   } else {
-    est <- .Call(C_global_estimate, p$Y, p$W, p$obs, as.integer(design$treated - 1L),
+    est <- .Call(C_global_estimate, p$Y, p$W, p$obs, plan$X, as.integer(design$treated - 1L),
                  as.integer(design$k), lambda, ctrl)
     n_skipped <- 0L
     n_nonconv <- as.integer(!isTRUE(est$converged))
@@ -193,11 +227,19 @@ trop_run <- function(plan) {
   tau <- est$tau
   dimnames(tau) <- plan$dimnames
 
+  covariates <- NULL
+  if (!is.null(plan$cov)) {
+    cv_ <- plan$cov
+    phi_s <- if (is.null(cv_$X)) double(0) else if (cv_$method == "residualize") cv_$phi_scaled else est$phi
+    coef_x <- stats::setNames(phi_s / cv_$scale, cv_$used)
+    covariates <- list(coef = coef_x, method = cv_$method, names = cv_$names, used = cv_$used,
+                       dropped = cv_$dropped)
+  }
   boot <- NULL
   std_error <- NA_real_
   ci <- c(NA_real_, NA_real_)
   if (plan$se == "bootstrap") {
-    bs <- .Call(C_bootstrap, p$Y, p$W, p$obs, if (plan$method == "local") 0L else 1L,
+    bs <- .Call(C_bootstrap, p$Yb, p$W, p$obs, plan$Xb, plan$resid, if (plan$method == "local") 0L else 1L,
                 as.integer(if (plan$method == "global") design$k else 0L), lambda, plan$rows, ctrl)
     kernel <- kernel + bs$kernel_seconds
     draws <- bs$draws
@@ -226,7 +268,8 @@ trop_run <- function(plan) {
       design = design$type,
       n_units = nrow(p$Y), n_periods = ncol(p$Y), n_treated_units = design$n_treated_units,
       n_treated_cells = design$n_treated_cells, n_skipped = n_skipped,
-      n_nonconverged = n_nonconv, tau = tau, cv = cv, boot = boot, control = plan$control,
+      n_nonconverged = n_nonconv, tau = tau, cv = cv, boot = boot, covariates = covariates,
+      control = plan$control,
       timing = list(kernel_seconds = kernel,
                     total_seconds = as.double(difftime(Sys.time(), t0, units = "secs"))),
       units = plan$dimnames[[1L]], times = plan$dimnames[[2L]], call = NULL

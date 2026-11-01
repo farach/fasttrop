@@ -2,10 +2,12 @@
 #'
 #' @param data A data frame with one row for each unit and period.
 #' @param outcome,treatment,unit,time Column names.
+#' @param covariates Optional covariate column names.
 #' @return A list with `Y` (double, with `NA` for a cell without an outcome),
-#'   `W` (integer, 0 or 1), and the sorted `units` and `times`.
+#'   `W` (integer, 0 or 1), `X` (an N x T x p array or `NULL`), and the sorted
+#'   `units` and `times`.
 #' @noRd
-panel_matrices <- function(data, outcome, treatment, unit, time) {
+panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NULL) {
   if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
   for (nm in c("outcome", "treatment", "unit", "time")) {
     v <- get(nm)
@@ -39,7 +41,11 @@ panel_matrices <- function(data, outcome, treatment, unit, time) {
   idx <- cbind(i, t)
   Y[idx] <- as.double(y)
   W[idx] <- as.integer(d)
-  list(Y = Y, W = W, units = units, times = times)
+  X <- NULL
+  if (!is.null(covariates)) {
+    X <- covariate_array(data, covariates, i, t, N, TT, units, times, is.finite(y))
+  }
+  list(Y = Y, W = W, X = X, units = units, times = times)
 }
 
 #' Find the assignment design

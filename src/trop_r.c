@@ -49,7 +49,7 @@ static void check_matrix(SEXP x, int type, int N, int T, const char *nm) {
   if (XLENGTH(x) != (R_xlen_t) N * (R_xlen_t) T) Rf_error("`%s` must have N x T entries.", nm);
 }
 
-static trop_panel read_panel(SEXP Y, SEXP W, SEXP obs) {
+static trop_panel read_panel(SEXP Y, SEXP W, SEXP obs, SEXP X) {
   if (!Rf_isMatrix(Y) || TYPEOF(Y) != REALSXP) Rf_error("`Y` must be a double matrix.");
   SEXP dim = Rf_getAttrib(Y, R_DimSymbol);
   trop_panel p;
@@ -60,7 +60,23 @@ static trop_panel read_panel(SEXP Y, SEXP W, SEXP obs) {
   p.Y = REAL(Y);
   p.W = INTEGER(W);
   p.obs = INTEGER(obs);
+  p.X = NULL;
+  p.p = 0;
+  p.resid = 0;
+  if (!Rf_isNull(X)) {
+    R_xlen_t NT = (R_xlen_t) p.N * (R_xlen_t) p.T;
+    if (TYPEOF(X) != REALSXP) Rf_error("`X` must be a double array.");
+    if (NT < 1 || XLENGTH(X) % NT != 0) Rf_error("`X` must have N x T x p entries.");
+    p.p = (int) (XLENGTH(X) / NT);
+    p.X = p.p > 0 ? REAL(X) : NULL;
+  }
   return p;
+}
+
+static SEXP phi_vec(int p) {
+  SEXP out = Rf_allocVector(REALSXP, p);
+  for (int m = 0; m < p; m++) REAL(out)[m] = NAN;
+  return out;
 }
 
 static SEXP named_list(int n, const char **names) {
@@ -128,33 +144,49 @@ SEXP C_fit_weighted(SEXP Y, SEXP w, SEXP lambda_nn, SEXP control) {
   return out;
 }
 
-SEXP C_local_estimate(SEXP Y, SEXP W, SEXP obs, SEXP lambda, SEXP control) {
-  trop_panel p = read_panel(Y, W, obs);
+SEXP C_local_estimate(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP lambda, SEXP control) {
+  trop_panel p = read_panel(Y, W, obs, X);
   trop_opts o = read_opts(control);
   double lt, lu, ln;
   read_lambda(lambda, &lt, &lu, &ln);
   SEXP tau = PROTECT(Rf_allocMatrix(REALSXP, p.N, p.T));
+  SEXP phi = PROTECT(phi_vec(p.p));
   double att = NAN, t0 = trop_wtime();
   int used = 0, skipped = 0, nonconv = 0;
   trop_qos_enter(&o);
-  int rc = trop_local_estimate(&p, lt, lu, ln, &o, REAL(tau), &att, &used, &skipped, &nonconv);
+  int rc = trop_local_estimate(&p, lt, lu, ln, &o, REAL(tau), &att, &used, &skipped, &nonconv,
+                               p.p > 0 ? REAL(phi) : NULL);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
-  if (rc != TROP_OK) { UNPROTECT(1); fail_rc(rc); }
-  const char *nm[] = {"att", "tau", "n_used", "n_skipped", "n_nonconverged", "kernel_seconds"};
-  SEXP out = PROTECT(named_list(6, nm));
+  if (rc != TROP_OK) { UNPROTECT(2); fail_rc(rc); }
+  const char *nm[] = {"att", "tau", "n_used", "n_skipped", "n_nonconverged", "kernel_seconds", "phi"};
+  SEXP out = PROTECT(named_list(7, nm));
   SET_VECTOR_ELT(out, 0, Rf_ScalarReal(att));
   SET_VECTOR_ELT(out, 1, tau);
   SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(used));
   SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(skipped));
   SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(nonconv));
   SET_VECTOR_ELT(out, 5, Rf_ScalarReal(el));
-  UNPROTECT(2);
+  SET_VECTOR_ELT(out, 6, phi);
+  UNPROTECT(3);
   return out;
 }
 
-SEXP C_local_loocv(SEXP Y, SEXP W, SEXP obs, SEXP lambda, SEXP cells, SEXP control) {
-  trop_panel p = read_panel(Y, W, obs);
+SEXP C_residualize(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP control) {
+  trop_panel p = read_panel(Y, W, obs, X);
+  trop_opts o = read_opts(control);
+  if (p.p < 1) Rf_error("`X` must have at least one covariate.");
+  SEXP phi = PROTECT(phi_vec(p.p));
+  trop_qos_enter(&o);
+  int rc = trop_residualize(&p, &o, REAL(phi));
+  trop_qos_leave(&o);
+  if (rc != TROP_OK) { UNPROTECT(1); fail_rc(rc); }
+  UNPROTECT(1);
+  return phi;
+}
+
+SEXP C_local_loocv(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP lambda, SEXP cells, SEXP control) {
+  trop_panel p = read_panel(Y, W, obs, X);
   trop_opts o = read_opts(control);
   double lt, lu, ln;
   read_lambda(lambda, &lt, &lu, &ln);
@@ -182,9 +214,9 @@ SEXP C_local_loocv(SEXP Y, SEXP W, SEXP obs, SEXP lambda, SEXP cells, SEXP contr
   return out;
 }
 
-SEXP C_local_search(SEXP Y, SEXP W, SEXP obs, SEXP g_time, SEXP g_unit, SEXP g_nn,
+SEXP C_local_search(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP g_time, SEXP g_unit, SEXP g_nn,
                     SEXP cells, SEXP max_cycles, SEXP control) {
-  trop_panel p = read_panel(Y, W, obs);
+  trop_panel p = read_panel(Y, W, obs, X);
   trop_opts o = read_opts(control);
   if (TYPEOF(g_time) != REALSXP || TYPEOF(g_unit) != REALSXP || TYPEOF(g_nn) != REALSXP)
     Rf_error("Grids must be double vectors.");
@@ -218,37 +250,42 @@ SEXP C_local_search(SEXP Y, SEXP W, SEXP obs, SEXP g_time, SEXP g_unit, SEXP g_n
   return out;
 }
 
-SEXP C_global_estimate(SEXP Y, SEXP W, SEXP obs, SEXP treated, SEXP k, SEXP lambda, SEXP control) {
-  trop_panel p = read_panel(Y, W, obs);
+SEXP C_global_estimate(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP treated, SEXP k, SEXP lambda,
+                       SEXP control) {
+  trop_panel p = read_panel(Y, W, obs, X);
   trop_opts o = read_opts(control);
   double lt, lu, ln;
   read_lambda(lambda, &lt, &lu, &ln);
   if (TYPEOF(treated) != INTSXP || XLENGTH(treated) < 1) Rf_error("`treated` must be a non-empty integer vector.");
   SEXP tau = PROTECT(Rf_allocMatrix(REALSXP, p.N, p.T));
+  SEXP phi = PROTECT(phi_vec(p.p));
   double att = NAN, t0 = trop_wtime();
   int conv = 0;
   trop_qos_enter(&o);
   int rc = trop_global_estimate(&p, INTEGER(treated), (int) XLENGTH(treated), Rf_asInteger(k),
-                                lt, lu, ln, &o, REAL(tau), &att, &conv);
+                                lt, lu, ln, &o, REAL(tau), &att, &conv,
+                                p.p > 0 ? REAL(phi) : NULL);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
-  if (rc != TROP_OK) { UNPROTECT(1); fail_rc(rc); }
-  const char *nm[] = {"att", "tau", "converged", "kernel_seconds"};
-  SEXP out = PROTECT(named_list(4, nm));
+  if (rc != TROP_OK) { UNPROTECT(2); fail_rc(rc); }
+  const char *nm[] = {"att", "tau", "converged", "kernel_seconds", "phi"};
+  SEXP out = PROTECT(named_list(5, nm));
   SET_VECTOR_ELT(out, 0, Rf_ScalarReal(att));
   SET_VECTOR_ELT(out, 1, tau);
   SET_VECTOR_ELT(out, 2, Rf_ScalarLogical(conv));
   SET_VECTOR_ELT(out, 3, Rf_ScalarReal(el));
-  UNPROTECT(2);
+  SET_VECTOR_ELT(out, 4, phi);
+  UNPROTECT(3);
   return out;
 }
 
-static trop_panel control_panel(SEXP Yc, SEXP obs_c, SEXP Wzero) {
-  return read_panel(Yc, Wzero, obs_c);
+static trop_panel control_panel(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc) {
+  return read_panel(Yc, Wzero, obs_c, Xc);
 }
 
-SEXP C_global_placebo(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP k, SEXP sets, SEXP lambda, SEXP control) {
-  trop_panel pc = control_panel(Yc, obs_c, Wzero);
+SEXP C_global_placebo(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP sets, SEXP lambda,
+                      SEXP control) {
+  trop_panel pc = control_panel(Yc, obs_c, Wzero, Xc);
   trop_opts o = read_opts(control);
   double lt, lu, ln;
   read_lambda(lambda, &lt, &lu, &ln);
@@ -271,9 +308,9 @@ SEXP C_global_placebo(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP k, SEXP sets, SEXP l
   return out;
 }
 
-SEXP C_global_search(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP k, SEXP sets, SEXP g_time,
+SEXP C_global_search(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP sets, SEXP g_time,
                      SEXP g_unit, SEXP g_nn, SEXP init, SEXP max_cycles, SEXP control) {
-  trop_panel pc = control_panel(Yc, obs_c, Wzero);
+  trop_panel pc = control_panel(Yc, obs_c, Wzero, Xc);
   trop_opts o = read_opts(control);
   if (!Rf_isMatrix(sets) || TYPEOF(sets) != INTSXP) Rf_error("`sets` must be an integer matrix.");
   if (TYPEOF(init) != REALSXP || XLENGTH(init) != 3) Rf_error("`init` must be a double vector of length 3.");
@@ -303,8 +340,10 @@ SEXP C_global_search(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP k, SEXP sets, SEXP g_
   return out;
 }
 
-SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP method, SEXP k, SEXP lambda, SEXP rows, SEXP control) {
-  trop_panel p = read_panel(Y, W, obs);
+SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP resid, SEXP method, SEXP k, SEXP lambda,
+                 SEXP rows, SEXP control) {
+  trop_panel p = read_panel(Y, W, obs, X);
+  p.resid = Rf_asLogical(resid) == 1;
   trop_opts o = read_opts(control);
   double lt, lu, ln;
   read_lambda(lambda, &lt, &lu, &ln);
@@ -347,13 +386,14 @@ SEXP C_openmp_threads(void) {
 
 static const R_CallMethodDef call_methods[] = {
   {"C_fit_weighted", (DL_FUNC) &C_fit_weighted, 4},
-  {"C_local_estimate", (DL_FUNC) &C_local_estimate, 5},
-  {"C_local_loocv", (DL_FUNC) &C_local_loocv, 6},
-  {"C_local_search", (DL_FUNC) &C_local_search, 9},
-  {"C_global_estimate", (DL_FUNC) &C_global_estimate, 7},
-  {"C_global_placebo", (DL_FUNC) &C_global_placebo, 7},
-  {"C_global_search", (DL_FUNC) &C_global_search, 11},
-  {"C_bootstrap", (DL_FUNC) &C_bootstrap, 8},
+  {"C_local_estimate", (DL_FUNC) &C_local_estimate, 6},
+  {"C_residualize", (DL_FUNC) &C_residualize, 5},
+  {"C_local_loocv", (DL_FUNC) &C_local_loocv, 7},
+  {"C_local_search", (DL_FUNC) &C_local_search, 10},
+  {"C_global_estimate", (DL_FUNC) &C_global_estimate, 8},
+  {"C_global_placebo", (DL_FUNC) &C_global_placebo, 8},
+  {"C_global_search", (DL_FUNC) &C_global_search, 12},
+  {"C_bootstrap", (DL_FUNC) &C_bootstrap, 10},
   {"C_openmp_threads", (DL_FUNC) &C_openmp_threads, 0},
   {NULL, NULL, 0}
 };

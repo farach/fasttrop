@@ -1,0 +1,8 @@
+"quantity","method","reference","n","max_abs_diff"
+"ATT","local","B",15,4.4922243702672e-10
+"ATT","global","B",10,1.94924298924093e-10
+"phi","global","B",15,4.92802576523843e-10
+"ATT","global","A",10,1.15769203890004e-06
+"phi","global","A",15,1.20541555603815e-06
+"effect of each treated cell","local","B",235,6.73417177576852e-09
+"phi, residualize","both","TWFE regression",5,9.32587340685131e-15
