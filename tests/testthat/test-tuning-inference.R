@@ -7,7 +7,7 @@ test_that("leave-one-out CV holds each cell out of its own fit and its own dista
   ctl <- tight_control()
   pool <- which(inp$W == 0L) - 1L
   cells <- as.integer(sort(pool[c(3, 17, 29, 40, 52)]))
-  kernel <- .Call(fasttrop:::C_local_loocv, inp$Y, inp$W, inp$obs, l, cells, unclass(ctl))
+  kernel <- .Call(fasttrop:::C_local_loocv, inp$Y, inp$W, inp$obs, NULL, l, cells, unclass(ctl))
   # Reference: set the treatment indicator of each cell of the criterion to 1,
   # and estimate the effect of the cell.
   manual <- vapply(cells, function(c0) {
@@ -32,7 +32,7 @@ test_that("placebo CV is the RMSE of placebo ATEs on untreated units", {
   ctl <- tight_control()
   oc <- matrix(1L, nrow(Yc), ncol(Yc))
   Wz <- matrix(0L, nrow(Yc), ncol(Yc))
-  kernel <- .Call(fasttrop:::C_global_placebo, Yc, oc, Wz, k, sets, l, unclass(ctl))
+  kernel <- .Call(fasttrop:::C_global_placebo, Yc, oc, Wz, NULL, k, sets, l, unclass(ctl))
   ates <- vapply(sets[, 1] + 1L, function(u) {
     Wp <- Wz
     Wp[u, (ncol(Yc) - k + 1L):ncol(Yc)] <- 1L

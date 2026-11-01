@@ -253,6 +253,72 @@ time. The simulations do not test the other modern estimator of Hull, which
 averages the DiD estimates of each cohort and period. They also do not compare
 TROP with a modern estimator on real data.
 
+## Covariates
+
+### Agreement with the references
+
+The Python package from the authors does not have covariates. The script
+`data-raw/oracle_covariates.py` makes two references on the panels XC1, XC2,
+and XC3 in `tests/testthat/fixtures`. Each panel has 12 units, 10 periods, and
+two covariates. XC2 has a staggered design. In XC3, the covariate `x2` does not
+change in time, so the unit effects absorb it.
+
+- Reference A is the global estimator of the authors' package with the term
+  $X\phi$ added. It uses CLARABEL.
+- Reference B is an independent solution of Eq. 13 for both methods. After
+  CLARABEL, a proximal step makes the solution accurate.
+
+The script `oracle_covariates_report.R` writes
+`oracle-covariates-comparison.csv`.
+
+| Comparison | Largest difference |
+|---|---|
+| Local ATT and reference B | 4.5e-10 |
+| Local effect of each treated cell and reference B | 6.7e-9 |
+| Global ATT and reference B | 2.0e-10 |
+| Global coefficients and reference B | 4.9e-10 |
+| Global ATT and reference A | 1.2e-6 |
+| Global coefficients and reference A | 1.2e-6 |
+| Coefficients of `covariate_method = "residualize"` and a TWFE regression | 9.3e-15 |
+
+The file `tests/testthat/test-oracle-covariates.R` makes sure of these
+results. The tolerances are 1e-4 for reference A, 1e-6 for reference B, and
+1e-8 for the TWFE regression.
+
+### Simulation with a known effect
+
+The script `covariates.R` runs a simulation with 200 panels. Each panel has 40
+units, 16 periods, and 10 treated units in the last 4 periods. The true effect
+is 1, and the true coefficient is 1.
+
+The covariate is 0 before the treatment, except for noise. After the
+treatment starts, it increases more for the treated units. Thus, the periods
+before the treatment do not show the bias. The file `covariates-summary.csv`
+has the results.
+
+| Method | Bias (Monte Carlo SE) | RMSE | Coverage, normal interval |
+|---|---|---|---|
+| TWFE imputation | 1.475 (0.054) | 1.657 | 0.400 |
+| TWFE imputation, covariates | 0.037 (0.032) | 0.451 | 0.910 |
+| TROP local | 1.448 (0.047) | 1.592 | 0.365 |
+| TROP local, joint | 0.010 (0.016) | 0.230 | 0.960 |
+| TROP local, residualize | 0.007 (0.019) | 0.261 | 0.965 |
+| TROP global | 1.449 (0.047) | 1.594 | 0.365 |
+| TROP global, joint | 0.005 (0.019) | 0.267 | 0.910 |
+| TROP global, residualize | -0.004 (0.020) | 0.279 | 0.930 |
+
+Without covariates, all methods have a large bias. With covariates, each bias
+is less than two Monte Carlo standard errors, and the mean coefficient is
+between 0.995 and 0.997. The coverage of TWFE imputation and TROP global with
+`"joint"` is 0.910, approximately two Monte Carlo standard errors less than
+95%. The panels have only 10 treated units.
+
+### Spot check with Stata
+
+The folder `stata` has a do-file and an R script that compare fasttrop with
+the Stata package `trop` (gorgeousfish/TROP). The scripts only call that
+package. The file `stata/README.md` gives the steps.
+
 ## Speed
 
 The folder `inst/bench` has the speed benchmarks. Refer to

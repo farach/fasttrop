@@ -23,7 +23,9 @@ trop(
   conf_level = 0.95,
   ci = c("normal", "percentile"),
   control = trop_control(),
-  seed = NULL
+  seed = NULL,
+  covariates = NULL,
+  covariate_method = c("joint", "residualize")
 )
 }
 \arguments{
@@ -71,6 +73,12 @@ to the section Inference.}
 \item{seed}{An optional integer seed for the sampled cells, the placebo sets,
 and the bootstrap. The function does not change the state of the random
 number generator in the R session.}
+
+\item{covariates}{Optional names of numeric covariate columns. Refer to the
+section Covariates.}
+
+\item{covariate_method}{Use \code{"joint"} or \code{"residualize"}. Refer to the
+section Covariates.}
 }
 \value{
 An object of class \code{trop}. It is a list with these elements and with
@@ -84,6 +92,9 @@ and the confidence interval.
 \item \code{cv}: the results of the cross-validation, or \code{NULL} for fixed tuning
 parameters.
 \item \code{boot}: the bootstrap draws.
+\item \code{covariates}: \code{NULL} without covariates. Otherwise, a list with the
+coefficients \code{coef}, the \code{method}, and the names of the covariates that
+the function \code{used} and \code{dropped}.
 \item \code{timing}: the time in the C code and the total time, in seconds.
 }
 }
@@ -161,6 +172,62 @@ regression adjustment. The proof uses fixed weights, and it is only for a
 block design. For a staggered or general design, the function calculates
 the estimator, but the bound has no proof. Thus, the function gives a
 warning message for these designs.
+}
+
+\section{Covariates}{
+
+Section 6.2 of the paper adds a covariate term to the model of Eq. 13. The
+model has the fixed effects, the low-rank term, and a linear term
+\eqn{X_{it}'\phi}. Use \code{covariates} to give the names of numeric columns. A
+row with an outcome must have finite values for all covariates. For a
+factor, make indicator columns with \code{\link[stats:model.matrix]{stats::model.matrix()}}.
+
+The paper gives the model, but it does not give one procedure to calculate
+\eqn{\phi}. The function has two procedures:
+\itemize{
+\item With \code{covariate_method = "joint"}, each weighted fit calculates
+\eqn{\phi} together with the fixed effects and the low-rank term. This is
+the minimization of Eq. 13. The local method calculates one \eqn{\phi} for
+each treated cell. The unit weights and the time weights use the outcomes,
+not the outcomes minus \eqn{X'\phi}. The leave-one-out fits and the
+placebo fits also calculate \eqn{\phi}.
+\item With \code{covariate_method = "residualize"}, the function first calculates
+\eqn{\phi} with an unweighted TWFE regression on all untreated cells with
+an outcome. Then it uses \eqn{Y^* = Y - \tilde{X}\phi} for the tuning,
+the weights, and the estimate. In \eqn{\tilde{X}}, the function removes
+the unit effects and the period effects of the untreated cells from
+\eqn{X}. The bootstrap calculates \eqn{\phi} again for each draw.
+}
+
+Section 6.2 of the paper tunes the estimator after it removes the
+covariates from the outcomes. The procedure \code{"residualize"} is one
+interpretation of that text. Usually, it does not give the minimum of
+Eq. 13. Its first step uses all untreated outcomes. Thus, the cells that the
+cross-validation holds out have an effect on \eqn{\phi}.
+
+The global method with covariates is an extension of fasttrop. The Python
+package from the authors does not have covariates.
+
+The fixed effects absorb a term \eqn{a_i + b_t} in a covariate. Thus, the
+results do not change when you add a unit constant or a period constant to a
+covariate.
+
+The function does not use a covariate that the unit effects, the
+period effects, or other covariates explain completely on the untreated
+cells. For example, a covariate that does not change in time has no effect
+on the estimate. The function gives a warning message for such a covariate.
+In a weighted fit with few untreated cells, a covariate can also have no
+variation. Then, that fit sets its coefficient to 0.
+
+The element \code{covariates$coef} of the result contains \eqn{\phi} in the
+units of the covariates. For the local method with \code{"joint"}, it is the mean
+of the values for the treated cells. This value is only a summary.
+
+The appendix of the paper gives a bias bound with covariates. This bound
+adds a term: the imbalance of the covariates times the error in \eqn{\phi}.
+Thus, the weights can decrease the bias, but they do not remove the bias
+from a wrong \eqn{\phi}. A covariate that the treatment changes can also
+make a bias. Use only covariates that the treatment does not change.
 }
 
 \examples{

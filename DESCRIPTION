@@ -1,6 +1,6 @@
 Package: fasttrop
 Title: Fast Triply Robust Panel Estimators
-Version: 0.1.0
+Version: 0.2.0
 Authors@R:
     person("Alex", "Farach", email = "alexfarach@microsoft.com",
            role = c("aut", "cre", "cph"))

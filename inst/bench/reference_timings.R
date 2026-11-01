@@ -56,7 +56,7 @@ if (!identical(args, "combine")) {
       if (nm == "panel_20x15") {
         inp <- fasttrop:::as_panel_inputs(pm$Y, pm$W)
         add(nm, "LOOCV Q(lambda), all untreated cells", impl, best_of(function() {
-          .Call(fasttrop:::C_local_loocv, inp$Y, inp$W, inp$obs, lam, NULL, unclass(ctl))$Q
+          .Call(fasttrop:::C_local_loocv, inp$Y, inp$W, inp$obs, NULL, lam, NULL, unclass(ctl))$Q
         }))
       }
     }

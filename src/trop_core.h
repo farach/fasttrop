@@ -27,6 +27,14 @@ typedef struct {
   const double *Y; /* outcomes, not used where obs == 0 */
   const int *W;    /* treatment indicator, 0 or 1 */
   const int *obs;  /* 1 if the cell has an outcome */
+  /* Optional covariates (Eq. 13 of the paper). X has N*T*p values, with
+   * covariate k at X[i + N*t + N*T*k]. If p is 0, X is not used. */
+  const double *X;
+  int p;
+  /* Bootstrap only. 0: fit X*phi with each weighted fit (joint). 1: before
+   * each draw, remove X*phi from one unweighted two-way fit on the untreated
+   * cells (residualize), then fit without covariates. */
+  int resid;
 } trop_panel;
 
 typedef int (*trop_interrupt_fn)(void);
@@ -48,7 +56,16 @@ int trop_fit_weighted(int N, int T, const double *Y, const double *w,
  * untreated cells do not identify its unit effect and period effect. */
 int trop_local_estimate(const trop_panel *p, double lam_time, double lam_unit,
                         double lam_nn, const trop_opts *opt, double *tau,
-                        double *att, int *n_used, int *n_skipped, int *n_nonconv);
+                        double *att, int *n_used, int *n_skipped, int *n_nonconv,
+                        double *phi);
+
+/* phi (length p, can be NULL) gets the covariate coefficients. For the local
+ * estimator, it is the mean of the coefficients of the treated-cell fits. */
+
+/* Unweighted two-way fit of Y on unit effects, period effects, and X over the
+ * untreated cells with an outcome. phi (length p) gets the coefficients. A
+ * column that the fixed effects absorb gets 0. */
+int trop_residualize(const trop_panel *p, const trop_opts *opt, double *phi);
 
 /* Local leave-one-out criterion Q(lambda) of Eq. 4 and Eq. 5 for untreated
  * cells. The array cells contains n_cells linear indices (i + N*t) of
@@ -76,7 +93,8 @@ int trop_local_search(const trop_panel *p, const double *g_time, int n_time,
  * at the end. */
 int trop_global_estimate(const trop_panel *p, const int *treated, int n_treated,
                          int k, double lam_time, double lam_unit, double lam_nn,
-                         const trop_opts *opt, double *tau, double *att, int *converged);
+                         const trop_opts *opt, double *tau, double *att, int *converged,
+                         double *phi);
 
 /* Placebo cross-validation for the global estimator on a panel with only
  * untreated units. The array sets contains n_sets placebo sets of set_size row

@@ -1,0 +1,100 @@
+{
+  "trop_commit": "43738cdaa8eb8356566903bb010bbf6ce4cb31b9",
+  "diff_diff_commit": "d46a5fd8b377923d944dc47bcf6d82233d0ebcfd",
+  "solver": "CLARABEL",
+  "solver_options": {
+    "tol_gap_abs": 1e-09,
+    "tol_gap_rel": 1e-09,
+    "tol_feas": 1e-09,
+    "tol_ktratio": 1e-09,
+    "max_iter": 1000
+  },
+  "tolerance": 1e-09,
+  "python": "3.12.10",
+  "cvxpy": "1.9.3",
+  "clarabel": "0.11.1",
+  "numpy": "2.5.4",
+  "pandas": "3.1.0",
+  "scipy": "1.18.1",
+  "panels": {
+    "XC1": {
+      "seed": 20261101,
+      "design": "block",
+      "treated_units": [
+        10,
+        11,
+        12
+      ],
+      "first_treated": [
+        8,
+        8,
+        8
+      ],
+      "x2_constant_within_unit": false
+    },
+    "XC2": {
+      "seed": 20261102,
+      "design": "staggered",
+      "treated_units": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "first_treated": [
+        6,
+        6,
+        7,
+        7,
+        9,
+        9
+      ],
+      "x2_constant_within_unit": false
+    },
+    "XC3": {
+      "seed": 20261103,
+      "design": "block",
+      "treated_units": [
+        9,
+        10,
+        11,
+        12
+      ],
+      "first_treated": [
+        7,
+        7,
+        7,
+        7
+      ],
+      "x2_constant_within_unit": true
+    }
+  },
+  "n_units": 12,
+  "n_periods": 10,
+  "phi_true": [
+    0.8,
+    -0.5
+  ],
+  "tau_true": 1.0,
+  "checks_max_abs_diff": {
+    "weights_local_vs_diffdiff": 0.0,
+    "weights_global_vs_diffdiff": 0.0,
+    "A_p0_vs_trop": 0.0,
+    "A_xzero_vs_trop": 2.92642108323804e-08,
+    "B_p0_vs_diffdiff_objective_rel": 2.5248681631663736e-15,
+    "B_p0_vs_diffdiff_fitted": 1.0648621096009947e-07,
+    "B_p0_clarabel_only_vs_diffdiff_fitted": 3.9042855761256545e-05,
+    "A_vs_B_global_att": 1.1577523432171333e-06,
+    "A_vs_B_global_phi": 1.2054238982539545e-06,
+    "A_vs_B_global_att_finite_nn": 1.1577523432171333e-06,
+    "A_vs_B_global_att_inf_nn": 2.220446049250313e-16,
+    "A_vs_B_clarabel_only_global_att": 7.107259966110391e-07,
+    "B_clarabel_only_vs_polished_tau": 1.584430916823365e-05,
+    "wls_vs_B_tau": 3.4638958368304884e-14,
+    "wls_vs_B_phi": 1.1102230246251565e-14,
+    "XC3_tau_with_vs_without_x2": 1.254996107036277e-12
+  },
+  "generated": "2026-11-01 14:42:29"
+}

@@ -20,7 +20,9 @@ trop_matrix(
   conf_level = 0.95,
   ci = c("normal", "percentile"),
   control = trop_control(),
-  seed = NULL
+  seed = NULL,
+  X = NULL,
+  covariate_method = c("joint", "residualize")
 )
 }
 \arguments{
@@ -68,6 +70,14 @@ to the section Inference.}
 \item{seed}{An optional integer seed for the sampled cells, the placebo sets,
 and the bootstrap. The function does not change the state of the random
 number generator in the R session.}
+
+\item{X}{Optional covariates. You can use one of three types. An array has
+the dimensions of \code{Y} and one more dimension for the covariates. A matrix
+with the dimensions of \code{Y} gives one covariate. A named list can contain
+such matrices. Refer to the section Covariates of \code{\link[=trop]{trop()}}.}
+
+\item{covariate_method}{Use \code{"joint"} or \code{"residualize"}. Refer to the
+section Covariates.}
 }
 \value{
 An object of class \code{trop}. Refer to \code{\link[=trop]{trop()}}.

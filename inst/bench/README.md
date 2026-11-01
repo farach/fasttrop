@@ -123,6 +123,23 @@ calculate exactly the same value.
 `diff-diff` ran in Python only, because its optional Rust code was not
 available. With the Rust code, its times can be shorter.
 
+## The time cost of covariates
+
+The script `covariate_timings.R` fits panels of 100 x 30 and 400 x 50 with 0,
+2, and 5 covariates. It uses fixed tuning parameters, no bootstrap, and 8
+threads. The file `covariate-timings.csv` has the results. The column
+`ratio_to_no_covariates` gives the time with covariates divided by the time
+without covariates.
+
+The local method on the 400 x 50 panel uses 1 run only.
+Some ratios are less than 1 because the solver iterations and the run times
+change. The ratios show that the cost of the covariates is small compared to
+the cost of the fit. To run it, use this command in the package folder:
+
+```
+Rscript inst/bench/covariate_timings.R 8 3
+```
+
 ## Notes on the times
 
 The times depend on the computer, the compiler, the BLAS library, and the

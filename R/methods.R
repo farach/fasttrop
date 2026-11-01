@@ -32,6 +32,10 @@ print.trop <- function(x, digits = 4L, ...) {
   cat("\n")
   cat(sprintf("  lambda: time = %s, unit = %s, nn = %s\n",
               format(x$lambda[["time"]]), format(x$lambda[["unit"]]), format(x$lambda[["nn"]])))
+  if (!is.null(x$covariates)) {
+    cat(sprintf("  Covariates (%s): %s\n", x$covariates$method,
+                if (length(x$covariates$used)) paste(x$covariates$used, collapse = ", ") else "none used"))
+  }
   invisible(x)
 }
 
@@ -50,6 +54,19 @@ print.summary.trop <- function(x, digits = 4L, ...) {
                 format(signif(x$cv$score, digits)), x$cv$n_evals))
   } else {
     cat("  Tuning: set by the user\n")
+  }
+  cvx <- x$covariates
+  if (!is.null(cvx) && length(cvx$coef)) {
+    lab <- if (cvx$method == "joint" && x$method == "local") {
+      "mean over the treated cells"
+    } else {
+      "one value for all cells"
+    }
+    cat(sprintf("  Covariate coefficients (%s):\n", lab))
+    cat(paste0("    ", names(cvx$coef), " = ", format(signif(cvx$coef, digits)), collapse = "\n"), "\n")
+  }
+  if (!is.null(cvx) && length(cvx$dropped)) {
+    cat(sprintf("  Covariates not used: %s\n", paste(cvx$dropped, collapse = ", ")))
   }
   if (!is.null(x$boot)) {
     cat(sprintf("  Bootstrap: %d draws (%s), %d failed, %s interval\n", length(x$boot$draws),

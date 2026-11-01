@@ -99,11 +99,11 @@ int main(int argc, char **argv) {
     double t1 = trop_wtime();
     if (method == 0) {
       int nu_ = 0, ns = 0, nc = 0;
-      rc = trop_local_estimate(&p, best[0], best[1], best[2], &o, tau, &att, &nu_, &ns, &nc);
+      rc = trop_local_estimate(&p, best[0], best[1], best[2], &o, tau, &att, &nu_, &ns, &nc, NULL);
     } else {
       int conv = 0;
       rc = trop_global_estimate(&p, treated, n_treated, k, best[0], best[1], best[2], &o, tau,
-                                &att, &conv);
+                                &att, &conv, NULL);
     }
     if (rc != TROP_OK) { fprintf(stderr, "estimate failed %d\n", rc); return 4; }
     double t2 = trop_wtime();

@@ -11,6 +11,8 @@ source("_setup.R")
 val <- function(file) {
   utils::read.csv(system.file("validation", file, package = "fasttrop"))
 }
+cov_orc <- val("oracle-covariates-comparison.csv")
+cov_sim <- val("covariates-summary.csv")
 ```
 
 ::: {.key-points}
@@ -20,7 +22,7 @@ Key points
   fasttrop and of the Python package `diff-diff` differ by at most 4e-8.
 - The difference from the Python package of the authors is larger, but it is
   still less than 3e-5. It comes from the less accurate solver of that package.
-- With each change to the code, 478 test expectations run on six platforms.
+- With each change to the code, 766 test expectations run on six platforms.
 - With a block design and random selection of the treated units, TROP had an
   error 44% to 62% smaller than TWFE imputation.
 - In a block-design simulation that selected treated units with large trends,
@@ -121,7 +123,7 @@ not examine:
 - The number of threads does not change the results. With a seed, the results
   are the same in each run.
 
-The test suite has 478 expectations. GitHub Actions runs it with
+The test suite has 766 expectations. GitHub Actions runs it with
 `R CMD check --as-cran` on six platforms: Linux with four versions of R, macOS,
 and Windows.
 
@@ -480,6 +482,22 @@ between the cells, but the noise in real panels can have correlation over time.
 We did not test the other modern estimator of Hull. It averages the DiD
 estimates of each cohort and period. We also did not compare TROP with a modern
 estimator on real data. Hull recommends this comparison for each application.
+
+## Covariates
+
+The article [Use covariates](covariates.html) gives the checks of the
+covariates. In summary:
+
+- On three test panels, fasttrop and an independent solution of Eq. 13 with
+  covariates agree to
+  `r formatC(max(cov_orc$max_abs_diff[cov_orc$reference == "B"]), format = "e", digits = 1)`
+  or better.
+- In a simulation with a covariate bias after the treatment starts, the bias
+  of TROP local decreased from
+  `r formatC(cov_sim$bias[cov_sim$method == "local"], format = "f", digits = 2)`
+  to
+  `r formatC(cov_sim$bias[cov_sim$method == "local_joint"], format = "f", digits = 2)`
+  with covariates.
 
 ## The scripts and the data
 

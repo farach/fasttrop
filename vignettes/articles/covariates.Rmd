@@ -1,0 +1,265 @@
+---
+title: "Use covariates"
+description: >
+  How fasttrop adds covariates to TROP, the two procedures for the
+  coefficients, and how we checked them.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE)
+source("_setup.R")
+val <- function(file) {
+  utils::read.csv(system.file("validation", file, package = "fasttrop"))
+}
+bench <- function(file) {
+  utils::read.csv(system.file("bench", file, package = "fasttrop"))
+}
+sim <- val("covariates-summary.csv")
+orc <- val("oracle-covariates-comparison.csv")
+tim <- bench("covariate-timings.csv")
+s <- function(m, col) sim[[col]][sim$method == m]
+f2 <- function(x) formatC(x, format = "f", digits = 2)
+f3 <- function(x) formatC(x, format = "f", digits = 3)
+e1 <- function(x) formatC(x, format = "e", digits = 1)
+```
+
+::: {.key-points}
+Key points
+
+- A covariate is a variable that can change the outcome, for example the
+  local unemployment rate. Use the argument `covariates` to add covariates.
+- Usually, covariates are not necessary for TROP. Its weights and its
+  low-rank term can remove many differences between the units.
+- Covariates help when a variable changes the outcomes only after the
+  treatment starts, and the treated units have a larger exposure to it. Then
+  the periods before the treatment do not show the problem.
+- In our simulation of this case, TROP without covariates had a bias of
+  `r f2(s("local", "bias"))`. With covariates, the bias was less than
+  `r f2(ceiling(100 * max(abs(sim$bias[grepl("_", sim$method)]))) / 100)`.
+- On test panels, fasttrop and an independent solution agree to
+  `r e1(max(orc$max_abs_diff[orc$reference == "B"]))` or better.
+:::
+
+## When covariates help
+
+TROP compares each treated unit with similar untreated units. It also uses a
+low-rank term for patterns that units share. These parts use the periods
+before the treatment. Thus, they can remove a difference that shows in those
+periods.
+
+A covariate can make a difference that does not show before the treatment.
+For example, a shock in the economy can start in the same period as the
+treatment. If the treated units have a larger exposure to the shock, their
+outcomes change more for a reason that is not the treatment. The weights and
+the low-rank term cannot find this difference in the earlier periods. If you
+can measure the exposure, a covariate can remove the bias.
+
+Use only covariates that the treatment does not change. If the treatment
+changes a covariate, the covariate takes some of the effect of the treatment.
+Then the estimate is not correct.
+
+## The model
+
+Section 6.2 of the paper adds the term \(X_{it}'\phi\) to the model of Eq. 13.
+\(X_{it}\) contains the covariates of unit \(i\) in period \(t\). The vector
+\(\phi\) contains their coefficients. The model also has the unit effects, the
+period effects, and the low-rank term.
+
+The paper gives the model, but it does not give one procedure to calculate
+\(\phi\). fasttrop has two procedures:
+
+- `covariate_method = "joint"` is the default. Each weighted fit calculates
+  \(\phi\) together with the other parts of the model. This is the minimum of
+  Eq. 13. The local method calculates one \(\phi\) for each treated cell.
+- `covariate_method = "residualize"` first calculates \(\phi\) with one TWFE
+  regression on the untreated cells. Then it removes \(X\phi\) from the
+  outcomes and uses the result for all other steps. Section 6.2 of the paper
+  tunes the estimator after it removes the covariates. This procedure is one
+  interpretation of that text. Its first step uses all untreated outcomes,
+  also the cells that the cross-validation holds out.
+
+Section 6.2 of the paper adds covariates to the estimator for each treated
+cell, which is the local method. fasttrop also adds them to the global method.
+This is an extension of fasttrop. The Python package from the authors has only
+the global method, and it does not have covariates.
+
+## An example
+
+This example adds a covariate to a practice panel. The covariate is 0 before
+the treatment for all units. After the treatment starts, it increases more for
+the treated units. The true coefficient is 1, and the true effect is 1.
+
+```{r example}
+library(fasttrop)
+panel <- trop_simulate(n_units = 40, n_periods = 20, n_treated = 8, n_post = 5,
+                       seed = 1)
+treated <- unique(panel$unit[panel$d == 1])
+set.seed(2)
+exposure <- rnorm(40)
+exposure[treated] <- exposure[treated] + 1
+panel$x <- exposure[panel$unit] * 1.5 * (panel$time > 15) +
+  rnorm(nrow(panel), 0, 0.5)
+panel$y <- panel$y + panel$x
+
+without <- trop(panel, "y", "d", "unit", "time", method = "global",
+                se = "none", seed = 1)
+with_x <- trop(panel, "y", "d", "unit", "time", method = "global",
+               se = "none", seed = 1, covariates = "x")
+c(without = without$estimate, with_covariate = with_x$estimate)
+with_x$covariates$coef
+```
+
+Without the covariate, the estimate includes the effect of the shock. With the
+covariate, the estimate is near the true effect of 1. The element
+`covariates$coef` gives \(\phi\). For the local method with `"joint"`, it is
+the mean of the values for the treated cells.
+
+## How we checked the covariates
+
+### Agreement with references
+
+The Python package from the authors does not have covariates. Thus, we made
+two references:
+
+- Reference A is the code of the authors for the global method, with the term
+  \(X\phi\) added. It uses the conic solver CLARABEL.
+- Reference B is an independent solution of Eq. 13 for the local method and
+  the global method. After CLARABEL, it uses more steps to get an accurate
+  minimum.
+
+We used three test panels with two covariates and five sets of fixed tuning
+parameters. One panel has a staggered design. In another panel, one covariate
+does not change in time, so the unit effects absorb it.
+
+```{r agreement, echo = FALSE}
+lab <- c(ATT = "ATT", phi = "Coefficients \\(\\phi\\)",
+         `effect of each treated cell` = "Effect of each treated cell",
+         `phi, residualize` = "Coefficients \\(\\phi\\), procedure `\"residualize\"`")
+tab <- data.frame(
+  Comparison = paste0(lab[orc$quantity], ", ",
+                      ifelse(orc$method == "both", "both methods",
+                             paste(orc$method, "method"))),
+  Reference = ifelse(orc$reference == "TWFE regression", "A TWFE regression in Python",
+                     paste("Reference", orc$reference)),
+  `Largest difference` = e1(orc$max_abs_diff),
+  check.names = FALSE)
+knitr::kable(tab)
+```
+
+The differences from reference B are near the limit of the arithmetic. The
+differences from reference A are larger because CLARABEL is less accurate.
+The tests in `tests/testthat/test-oracle-covariates.R` make sure of these
+results with each change to the code.
+
+### A simulation with a known effect
+
+The simulation has 200 panels with 40 units and 16 periods. Ten units get the
+treatment in the last 4 periods. The true effect is 1.
+
+The untreated outcomes have unit effects, period effects, two factors, noise,
+and the term \(X\phi\) with \(\phi = 1\). The covariate is 0 before the
+treatment, except for noise. In the last 4 periods, it increases with the
+exposure of each unit. The treated units have a larger exposure. The script
+`inst/validation/covariates.R` has the details.
+
+```{r sim-fig, echo = FALSE, fig.asp = 0.5, fig.cap = "The bias and the RMSE of each method without covariates and with covariates. The true effect is 1. Each estimate uses the same 200 panels.", fig.alt = "A dot chart with two panels. Without covariates, the bias of TWFE imputation, TROP local, and TROP global is approximately 1.45 to 1.48, and the RMSE is approximately 1.6. With covariates, all biases are near 0. The RMSE is 0.45 for TWFE imputation and from 0.23 to 0.28 for TROP."}
+d <- sim
+d$estimator <- sub("_.*", "", d$method)
+d$estimator <- factor(c(twfe = "TWFE imputation", local = "TROP local",
+                        global = "TROP global")[d$estimator],
+                      levels = c("TROP global", "TROP local", "TWFE imputation"))
+d$covariates <- ifelse(grepl("_joint", d$method), "With covariates, joint",
+                       ifelse(grepl("_resid", d$method), "With covariates, residualize",
+                              "Without covariates"))
+long <- rbind(data.frame(d[c("estimator", "covariates")], measure = "Bias", value = d$bias),
+              data.frame(d[c("estimator", "covariates")], measure = "RMSE", value = d$rmse))
+ggplot(long, aes(value, estimator, colour = covariates, shape = covariates)) +
+  geom_vline(xintercept = 0, colour = ft_col[["grey"]]) +
+  geom_point(size = 3) +
+  facet_wrap(~measure) +
+  scale_colour_manual(values = c(`Without covariates` = ft_col[["coral"]],
+                                 `With covariates, joint` = ft_col[["teal"]],
+                                 `With covariates, residualize` = ft_col[["teal_light"]])) +
+  labs(x = NULL, y = NULL)
+```
+
+```{r sim-table, echo = FALSE}
+nm <- c(twfe = "TWFE imputation", twfe_joint = "TWFE imputation, covariates",
+        local = "TROP local", local_joint = "TROP local, joint",
+        local_resid = "TROP local, residualize", global = "TROP global",
+        global_joint = "TROP global, joint", global_resid = "TROP global, residualize")
+knitr::kable(data.frame(
+  Method = nm[sim$method],
+  `Bias (Monte Carlo SE)` = sprintf("%s (%s)", f3(sim$bias), f3(sim$mc_se_bias)),
+  RMSE = f3(sim$rmse),
+  `Coverage, normal interval` = f3(sim$coverage_normal),
+  `Mean of phi` = ifelse(is.na(sim$mean_phi), "", f3(sim$mean_phi)),
+  check.names = FALSE), align = "lrrrr")
+```
+
+Without covariates, all three methods have a large bias. The pre-periods do
+not show the shock, so the weights cannot remove it. With covariates, the bias
+of each method is less than two Monte Carlo standard errors. The mean of
+\(\phi\) is near the true value of 1.
+
+With covariates, TROP local with `"joint"` had an RMSE of
+`r f3(s("local_joint", "rmse"))`. TWFE imputation with covariates had an RMSE
+of `r f3(s("twfe_joint", "rmse"))`. TROP also uses its weights and its
+low-rank term for the two factors.
+
+The coverage of the normal interval of TROP local is near 95%. The coverage
+of TWFE imputation with covariates is
+`r f3(s("twfe_joint", "coverage_normal"))`. The coverage of TROP global with
+`"joint"` is `r f3(s("global_joint", "coverage_normal"))`. These values are
+approximately two Monte Carlo standard errors less than 95%. The panels have
+only 10 treated units. The
+paper says that the bootstrap is correct only with many treated units.
+
+The two procedures gave similar results in this simulation. This result
+applies only to this simulation.
+
+### A spot check with Stata
+
+The Stata package `trop` from gorgeousfish/TROP also has covariates. The
+folder `inst/validation/stata` has a do-file and an R script that compare the
+two packages on the test panels. The scripts only call the Stata package.
+They do not contain code from it. The file `README.md` in that folder gives
+the steps.
+
+## The time cost of covariates
+
+The joint procedure adds the covariates to each weighted fit. The table gives
+the time of one fit with fixed tuning parameters and no bootstrap, with 8
+threads. Times depend on the computer.
+
+```{r timing, echo = FALSE}
+tt <- tim[order(tim$n_units, tim$method, tim$covariates), ]
+knitr::kable(data.frame(
+  Panel = sprintf("%d x %d", tt$n_units, tt$n_periods),
+  Method = tt$method,
+  Covariates = tt$covariates,
+  `Time (s)` = signif(tt$median_seconds, 3),
+  `Ratio to no covariates` = f2(tt$ratio_to_no_covariates),
+  check.names = FALSE), align = "llrrr")
+```
+
+The file `inst/bench/covariate_timings.R` makes this table.
+
+The global times are the median of 3 runs. The local times for the 400 x 50
+panel are from 1 run only. Some ratios are less than 1. The solver iterations change with the
+data, and the times of one run change from run to run. Thus, these ratios do
+not show that covariates make a fit faster. They show that the cost of the
+covariates is small compared to the cost of the fit.
+
+## Good practice
+
+- Use covariates only when you have a reason. A covariate with no effect
+  adds noise to the estimate.
+- Use only covariates that the treatment does not change.
+- The fixed effects absorb a covariate that does not change in time. fasttrop
+  gives a warning message for such a covariate and does not use it.
+- Compare the estimates without covariates and with covariates. A large
+  change shows that a covariate is important. Then, examine the reason.
+- The appendix of the paper gives a bias bound with covariates. The bound has
+  an extra term: the imbalance of the covariates times the error in \(\phi\).
+  Thus, the weights do not remove the bias from a wrong \(\phi\).

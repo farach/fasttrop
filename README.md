@@ -124,6 +124,24 @@ coefficient for the treatment. In a block design with no `NA` outcomes, the
 two results are the same. In a staggered design, they can be different if the
 effects are different between treated cells.
 
+### Covariates
+
+Both methods can use covariates, the term $X_{it}'\phi$ of Eq. 13 in Section
+6.2 of the paper. Give the names of numeric columns:
+
+```r
+fit <- trop(panel, outcome = "y", treatment = "d", unit = "unit",
+            time = "time", covariates = c("x1", "x2"))
+fit$covariates$coef
+```
+
+By default (`covariate_method = "joint"`), each weighted fit calculates
+$\phi$ together with the other parts of the model. With
+`covariate_method = "residualize"`, one TWFE regression on the untreated
+cells calculates \(\phi\) first. The global method with covariates is an
+extension of fasttrop. The article "Use covariates" on the website gives the
+details.
+
 ## Validation
 
 We compared fasttrop with two reference implementations at fixed commits. The
@@ -143,7 +161,7 @@ conic solver in that package.
 
 The tests also examine the tuning and the bootstrap. For example, the
 leave-one-out criterion does not use a cell in its own fit, and the number of
-threads does not change the results. The test suite has 478 expectations.
+threads does not change the results. The test suite has 766 expectations.
 
 Monte Carlo simulations with a known effect and a block design gave these
 results:
@@ -218,14 +236,17 @@ scripts and the saved results of the benchmarks.
 
 ## Limits
 
-These limits apply to version 0.1.0:
+These limits apply to version 0.2.0:
 
 - Theorem 5.1 of the paper (triple robustness) has a proof only for a block
   design. For other designs, fasttrop gives a warning message.
 - The bootstrap is correct only with many treated units. fasttrop gives a
   warning message for a bootstrap with fewer than five treated units.
 - The global method works only for a block design.
-- The package cannot use covariates.
+- With covariates, the weights do not remove a bias from a wrong covariate
+  coefficient. The paper does not give one procedure to calculate the
+  coefficients, and the global method with covariates is an extension of
+  fasttrop. Refer to the section Covariates of `?trop`.
 - In our simulations in which the treated units had larger trends, TROP
   reduced the bias, but some bias stayed. With the local method, TROP removed
   approximately half of the bias of TWFE imputation in a block design and 20%
