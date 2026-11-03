@@ -161,7 +161,7 @@ conic solver in that package.
 
 The tests also examine the tuning and the bootstrap. For example, the
 leave-one-out criterion does not use a cell in its own fit, and the number of
-threads does not change the results. The test suite has 766 expectations.
+threads does not change the results.
 
 Monte Carlo simulations with a known effect and a block design gave these
 results:
