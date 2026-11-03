@@ -1,5 +1,12 @@
 # Changelog
 
+## fasttrop (development version)
+
+- Time weights now use direct exponential values, with zero after
+  underflow. This corrects the identifiability test for distant cells in
+  long panels. The correction applies to local estimation,
+  cross-validation, and bootstrap draws.
+
 ## fasttrop 0.2.0
 
 ### Covariates
