@@ -748,7 +748,14 @@ static void ws_use(ws_t *ws, const prep_t *q) {
 static void local_weights(const prep_t *q, int i, int t, double lt, double lu,
                           int exclude_target, double *w, double *theta, double *omega) {
   int N = q->N, T = q->T;
-  for (int s = 0; s < T; s++) theta[s] = (lt == 0.0) ? 1.0 : exp(-lt * fabs((double) (t - s)));
+  if (lt == 0.0) {
+    for (int s = 0; s < T; s++) theta[s] = 1.0;
+  } else {
+    double decay = exp(-lt);
+    theta[t] = 1.0;
+    for (int s = t - 1; s >= 0; s--) theta[s] = theta[s + 1] * decay;
+    for (int s = t + 1; s < T; s++) theta[s] = theta[s - 1] * decay;
+  }
   if (lu == 0.0) {
     for (int j = 0; j < N; j++) omega[j] = 1.0;
   } else {
