@@ -749,7 +749,7 @@ static void local_weights(const prep_t *q, int i, int t, double lt, double lu,
                           int exclude_target, double *w, double *theta, double *omega) {
   int N = q->N, T = q->T;
   /* Direct exponentials preserve zero weights at the underflow boundary. */
-  for (int s = 0; s < T; s++) theta[s] = exp(-lt * fabs((double) t - s));
+  for (int s = 0; s < T; s++) theta[s] = lt == 0.0 ? 1.0 : exp(-lt * fabs((double) t - s));
   if (lu == 0.0) {
     for (int j = 0; j < N; j++) omega[j] = 1.0;
   } else {
