@@ -1,6 +1,6 @@
 # Benchmarks
 
-This folder has two benchmarks. The first benchmark measures the cost of the R
+This folder has several benchmarks. The first benchmark measures the cost of the R
 code. It compares the R package with a C program that uses the same C core.
 The second benchmark compares fasttrop with the other implementations of the
 TROP estimator.
@@ -148,3 +148,65 @@ benchmarks used the reference BLAS and LAPACK of R. A faster BLAS, for example
 OpenBLAS, can make the times of fasttrop shorter. When R uses a faster BLAS,
 fasttrop also uses it. In the Python runs, each package used its default
 solver options.
+
+## Local time-weight cache
+
+The script `time_cache_timings.R` compares two installed versions on the same
+local cross-validation searches. The baseline is commit `e85d03f`, the squash
+merge of PR #4. The new version uses a cache for time weights.
+
+Each distinct time penalty has one vector of `2 * T - 1` values. A target
+period selects a contiguous view of this vector. Thus, the cache uses space
+proportional to the number of periods and distinct time penalties.
+No T-by-T matrix is necessary.
+
+The search owns the cache. All workers read it without changes.
+The local estimate and bootstrap use the same representation.
+
+Direct exponentials set the values. Repeated multiplication can retain a
+positive subnormal value after the direct formula gives zero. This changes
+the graph of positively weighted control cells. A regression test uses a
+three-unit panel with a gap of 2,000 periods. The corrected estimator skips
+the disconnected target and does not report an effect.
+
+To compare two installed versions, run this command from the new source folder:
+
+```
+Rscript inst/bench/time_cache_timings.R BASE_LIB NEW_LIB 7
+```
+
+Each pair uses separate R processes for the two versions. Their sequence
+alternates between pairs. Each worker first runs an untimed search.
+The C timer excludes process startup, package loading, and panel preparation.
+The short workload uses the mean of 25 searches in each round.
+The other workload uses one search in each round.
+
+The files `time-cache-rounds.csv` and `time-cache-summary.csv` contain the
+measurements. The file `time-cache-session.txt` records the R environment.
+Both versions used GCC 14.3.0, `-O2`, OpenMP, and the reference BLAS of R.
+
+The grid has time and unit penalties of 0, 0.5, and 1.
+The 30-by-20 panel also uses nuclear-norm penalties of 0.1, 1, and infinity.
+The 12-by-120 panel disables the low-rank term.
+Both searches use 60 sampled control cells and fixed seeds.
+
+| Panel | Threads | Baseline median (s) | Cache median (s) | Paired speed ratio, 95% interval |
+|---|---|---|---|---|
+| 30 x 20 | 1 | 2.595 | 2.610 | 1.001, 0.965 to 1.039 |
+| 30 x 20 | 4 | 0.6035 | 0.6235 | 0.975, 0.910 to 1.044 |
+| 12 x 120, no low-rank term | 1 | 0.009857 | 0.009983 | 0.987, 0.919 to 1.061 |
+| 12 x 120, no low-rank term | 4 | 0.005030 | 0.005239 | 0.903, 0.752 to 1.084 |
+
+The ratios use the geometric mean of paired baseline times divided by cache
+times. Values above one mean that the cache is faster.
+The intervals use a Student t interval on the log ratios across seven pairs.
+Every interval contains one. Thus, these measurements show no clear speed gain.
+
+The cache median is slightly slower on the representative 30-by-20 workload.
+The implementation retains the cache to correct underflow and remove repeated
+time-vector calculations. It does not claim a speed increase on these panels.
+
+The tuning parameters, cell effects, and four bootstrap draws agree between
+versions. The largest CV-score difference is `1.42e-14`.
+Each version gives exactly the same bits with one and four threads.
+These comparisons apply to the measured panels, not all possible inputs.
