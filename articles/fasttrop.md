@@ -126,7 +126,7 @@ summary(fit_cv)
 #>   Tuning: loocv, score 18.79, 34 grid evaluations
 #>   Bootstrap: 100 draws (stratified), 0 failed, normal interval
 #>   Treated units: 5 | Skipped cells: 0 | Non-converged fits: 0
-#>   Time: 1.444 s in total, 1.438 s in the C code (4 threads)
+#>   Time: 1.129 s in total, 1.124 s in the C code (4 threads)
 ```
 
 The function [`summary()`](https://rdrr.io/r/base/summary.html) also
