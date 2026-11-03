@@ -741,26 +741,15 @@ static void ws_use(ws_t *ws, const prep_t *q) {
   ws->p = q->pf;
 }
 
-/* Mirrored time distances for every target period, in O(T) space. */
-static double *local_time_new(int T, double lt) {
-  size_t center = (size_t) T - 1;
-  double *v = (double *) malloc((2 * center + 1) * sizeof(double));
-  if (!v) return NULL;
-  v[center] = 1.0;
-  /* Direct exponentials preserve zero weights at the underflow boundary. */
-  for (int d = 1; d < T; d++) {
-    double w = lt == 0.0 ? 1.0 : exp(-lt * (double) d);
-    v[center - d] = v[center + d] = w;
-  }
-  return v;
-}
-
-/* Weights from Eq. 3 of the paper. The RMS gap excludes period t.
- * A length-T view of the mirrored distance vector requires no copy. */
-static void local_weights(const prep_t *q, int i, int t, const double *time, double lu,
-                          int exclude_target, double *w, double *omega) {
+/* Weights for the target cell (i, t), from Eq. 3 of the paper. The time
+ * weight is exp(-lt |t - s|). The unit weight is exp(-lu d_{-t}(j, i)). The
+ * RMS gap uses the periods in which both units are observed controls, but not
+ * period t. */
+static void local_weights(const prep_t *q, int i, int t, double lt, double lu,
+                          int exclude_target, double *w, double *theta, double *omega) {
   int N = q->N, T = q->T;
-  const double *theta = time + (size_t) T - 1 - t;
+  /* Direct exponentials preserve zero weights at the underflow boundary. */
+  for (int s = 0; s < T; s++) theta[s] = exp(-lt * fabs((double) t - s));
   if (lu == 0.0) {
     for (int j = 0; j < N; j++) omega[j] = 1.0;
   } else {
@@ -832,7 +821,7 @@ static int estimable(ws_t *ws, const double *w, int i, int t) {
  * processes the cells of the same unit in time order. Thus, the warm starts
  * are deterministic. */
 static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
-                               const int *rows, const double *time, double lu, double ln,
+                               const int *rows, double lt, double lu, double ln,
                                const trop_opts *o, int parallel, double *tau,
                                double *att, int *n_used, int *n_skipped, int *n_nonconv,
                                double *phi) {
@@ -847,13 +836,17 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
   int err = 0, skipped = 0, nonconv = 0;
   int nth = parallel ? nthreads(o) : 1;
 #ifdef _OPENMP
-#pragma omp parallel num_threads(nth) reduction(+:skipped, nonconv) reduction(|:err)
+#pragma omp parallel num_threads(nth) reduction(+:skipped, nonconv)
 #endif
   {
     trop_qos_enter(o);
     ws_t *ws = ws_new(N, T, pf);
+    double *theta = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
-    if (!ws || !omega) {
+    if (!ws || !theta || !omega) {
+#ifdef _OPENMP
+#pragma omp atomic write
+#endif
       err = 1;
     } else {
       ws_use(ws, q);
@@ -870,7 +863,7 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
         if (W[s] != 1 || !obs[s]) continue;
         size_t c = (size_t) i + (size_t) N * t;
         if (!isfinite(q->Y[c]) || !(obs[s])) continue;
-        local_weights(q, i, t, time, lu, 0, ws->w, omega);
+        local_weights(q, i, t, lt, lu, 0, ws->w, theta, omega);
         if (!estimable(ws, ws->w, i, t)) { skipped++; continue; }
         if (!started || !o->warm) { ws_cold(ws); started = 1; }
         int it = 0;
@@ -881,6 +874,7 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
       }
     }
     ws_free(ws);
+    free(theta);
     free(omega);
     trop_qos_leave(o);
   }
@@ -910,12 +904,9 @@ int trop_local_estimate(const trop_panel *p, double lam_time, double lam_unit,
                         double *phi) {
   prep_t *q = prep_new(p->N, p->T, p->p);
   if (!q) return TROP_ERR_ALLOC;
-  double *time = local_time_new(p->T, lam_time);
-  if (!time) { prep_free(q); return TROP_ERR_ALLOC; }
   prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, lam_unit != 0.0);
-  int rc = local_estimate_prep(q, p->W, p->obs, NULL, time, lam_unit, lam_nn,
+  int rc = local_estimate_prep(q, p->W, p->obs, NULL, lam_time, lam_unit, lam_nn,
                                opt, 1, tau, att, n_used, n_skipped, n_nonconv, phi);
-  free(time);
   prep_free(q);
   return rc;
 }
@@ -941,7 +932,7 @@ static int cmp_int(const void *a, const void *b) {
   return (x > y) - (x < y);
 }
 
-static int local_loocv_prep(const prep_t *q, const double *time, double lu, double ln,
+static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
                             const int *cells_in, int n_cells_in, const trop_opts *o,
                             double *Q, int *n_valid, int *n_nonconv) {
   int N = q->N, T = q->T;
@@ -976,13 +967,17 @@ static int local_loocv_prep(const prep_t *q, const double *time, double lu, doub
   int err = 0, nonconv = 0;
   int nth = nthreads(o);
 #ifdef _OPENMP
-#pragma omp parallel num_threads(nth) reduction(+:nonconv) reduction(|:err)
+#pragma omp parallel num_threads(nth) reduction(+:nonconv)
 #endif
   {
     trop_qos_enter(o);
     ws_t *ws = ws_new(N, T, q->pf);
+    double *theta = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
-    if (!ws || !omega) {
+    if (!ws || !theta || !omega) {
+#ifdef _OPENMP
+#pragma omp atomic write
+#endif
       err = 1;
     } else {
       ws_use(ws, q);
@@ -996,7 +991,7 @@ static int local_loocv_prep(const prep_t *q, const double *time, double lu, doub
       for (int k = ustart[i]; k < ustart[i + 1]; k++) {
         int t = key[k] % T;
         size_t c = (size_t) i + (size_t) N * t;
-        local_weights(q, i, t, time, lu, 1, ws->w, omega);
+        local_weights(q, i, t, lt, lu, 1, ws->w, theta, omega);
         if (!estimable(ws, ws->w, i, t)) { tau[k] = NAN; continue; }
         if (!started || !o->warm) { ws_cold(ws); started = 1; }
         int it = 0;
@@ -1006,6 +1001,7 @@ static int local_loocv_prep(const prep_t *q, const double *time, double lu, doub
       }
     }
     ws_free(ws);
+    free(theta);
     free(omega);
     trop_qos_leave(o);
   }
@@ -1029,12 +1025,9 @@ int trop_local_loocv(const trop_panel *p, double lam_time, double lam_unit,
                      const trop_opts *opt, double *Q, int *n_valid, int *n_nonconv) {
   prep_t *q = prep_new(p->N, p->T, p->p);
   if (!q) return TROP_ERR_ALLOC;
-  double *time = local_time_new(p->T, lam_time);
-  if (!time) { prep_free(q); return TROP_ERR_ALLOC; }
   prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, lam_unit != 0.0);
-  int rc = local_loocv_prep(q, time, lam_unit, lam_nn, cells, n_cells, opt,
+  int rc = local_loocv_prep(q, lam_time, lam_unit, lam_nn, cells, n_cells, opt,
                             Q, n_valid, n_nonconv);
-  free(time);
   prep_free(q);
   return rc;
 }
@@ -1087,37 +1080,19 @@ static void cache_trace(const cache_t *c, double *trace, int max_trace, int *n_e
 /* Local search (paper footnote 2)                                           */
 /* ------------------------------------------------------------------------ */
 
-typedef struct local_time_cache {
-  double lt;
-  double *v;
-  struct local_time_cache *next;
-} local_time_cache;
-
 typedef struct {
   const prep_t *q;
   const int *cells;
   int n_cells;
   const trop_opts *o;
   cache_t cache;
-  local_time_cache *time;
 } lsearch_t;
 
 static int lsearch_eval(lsearch_t *s, double lt, double lu, double ln, double *score) {
   if (cache_get(&s->cache, lt, lu, ln, score)) return TROP_OK;
-  local_time_cache *time = s->time;
-  while (time && time->lt != lt) time = time->next;
-  if (!time) {
-    time = (local_time_cache *) malloc(sizeof(local_time_cache));
-    if (!time) return TROP_ERR_ALLOC;
-    time->v = local_time_new(s->q->T, lt);
-    if (!time->v) { free(time); return TROP_ERR_ALLOC; }
-    time->lt = lt;
-    time->next = s->time;
-    s->time = time;
-  }
   double Q = INFINITY;
   int nv = 0, nc = 0;
-  int rc = local_loocv_prep(s->q, time->v, lu, ln, s->cells, s->n_cells, s->o, &Q, &nv, &nc);
+  int rc = local_loocv_prep(s->q, lt, lu, ln, s->cells, s->n_cells, s->o, &Q, &nv, &nc);
   if (rc != TROP_OK) return rc;
   *score = Q;
   return cache_put(&s->cache, lt, lu, ln, Q);
@@ -1155,7 +1130,7 @@ int trop_local_search(const trop_panel *p, const double *g_time, int n_time,
   prep_t *q = prep_new(p->N, p->T, p->p);
   if (!q) return TROP_ERR_ALLOC;
   prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, need_dist);
-  lsearch_t s = { q, cells, n_cells, opt, { NULL, 0, 0 }, NULL };
+  lsearch_t s = { q, cells, n_cells, opt, { NULL, 0, 0 } };
   double sc, lt0, lu0, ln0, lt, lu, ln, score = INFINITY, prev = INFINITY;
   int rc;
   /* Stage 1: univariate searches with the other components disabled. */
@@ -1177,12 +1152,6 @@ int trop_local_search(const trop_panel *p, const double *g_time, int n_time,
   cache_trace(&s.cache, trace, max_trace, n_evals);
 done:
   free(s.cache.v);
-  while (s.time) {
-    local_time_cache *next = s.time->next;
-    free(s.time->v);
-    free(s.time);
-    s.time = next;
-  }
   prep_free(q);
   return rc;
 }
@@ -1387,12 +1356,10 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
   int nth = nthreads(opt);
   int chunk = 32 * nth;
   int err = 0;
-  double *time = method == 0 ? local_time_new(T, lam_time) : NULL;
-  if (method == 0 && !time) return TROP_ERR_ALLOC;
   for (int start = 0; start < B && !err; start += chunk) {
     int stop = start + chunk < B ? start + chunk : B;
 #ifdef _OPENMP
-#pragma omp parallel num_threads(nth) reduction(|:err)
+#pragma omp parallel num_threads(nth)
 #endif
     {
       trop_qos_enter(opt);
@@ -1406,6 +1373,9 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
       int *ob = (int *) malloc((size_t) N * (size_t) T * sizeof(int));
       int *tr = (int *) malloc((size_t) N * sizeof(int));
       if (!q || !ws || !theta || !omega || !avg || !tau || !Wb || !ob || !tr) {
+#ifdef _OPENMP
+#pragma omp atomic write
+#endif
         err = 1;
       }
 #ifdef _OPENMP
@@ -1435,7 +1405,7 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
         int rc;
         if (method == 0) {
           int nu = 0, ns = 0, nc = 0;
-          rc = local_estimate_prep(q, Wb, ob, NULL, time, lam_unit, lam_nn, opt, 0,
+          rc = local_estimate_prep(q, Wb, ob, NULL, lam_time, lam_unit, lam_nn, opt, 0,
                                    tau, &a, &nu, &ns, &nc, NULL);
         } else {
           int conv = 0;
@@ -1444,17 +1414,13 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
                                              NULL, &a, &conv, NULL)
                         : TROP_ERR_INPUT;
         }
-        if (rc == TROP_ERR_ALLOC) {
-          err = 1;
-        }
         draws[b] = (rc == TROP_OK) ? a : NAN;
       }
       prep_free(q); ws_free(ws); free(theta); free(omega); free(avg); free(tau);
       free(Wb); free(ob); free(tr);
       trop_qos_leave(opt);
     }
-    if (!err && chk && chk()) { free(time); return TROP_ERR_INTERRUPT; }
+    if (!err && chk && chk()) return TROP_ERR_INTERRUPT;
   }
-  free(time);
   return err ? TROP_ERR_ALLOC : TROP_OK;
 }

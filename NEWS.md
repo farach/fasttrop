@@ -1,13 +1,9 @@
 # fasttrop (development version)
 
-- The local estimator reuses time weights across the cells and tuning parameters
-  of a cross-validation search. The cache uses space proportional to the number
-  of periods and distinct time penalties.
 - Time weights now use direct exponential values, with zero after underflow.
   This corrects the identifiability test for distant cells in long panels.
-- The local bootstrap shares these time weights across all draws.
-  Memory allocation errors now stop the calculation.
-  They no longer produce failed draws.
+  The correction applies to local estimation, cross-validation, and bootstrap
+  draws.
 
 # fasttrop 0.2.0
 

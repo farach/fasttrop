@@ -41,7 +41,7 @@ test_that("local time weights retain direct-exponential underflow boundaries", {
   }
 })
 
-test_that("cached CV scores equal separate fits and do not depend on thread count", {
+test_that("CV scores equal separate fits and do not depend on thread count", {
   p <- small_panel(seed = 147, n_units = 8, n_periods = 9, n_treated = 2)
   p$Y[3, 2] <- NA_real_
   inp <- fasttrop:::as_panel_inputs(p$Y, p$W)
