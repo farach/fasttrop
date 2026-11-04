@@ -837,6 +837,9 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
     phisum = (double *) calloc((size_t) N * (size_t) pf, sizeof(double));
     if (!phisum) return TROP_ERR_ALLOC;
   }
+  double *decay = (double *) malloc((size_t) T * sizeof(double));
+  if (!decay) { free(phisum); return TROP_ERR_ALLOC; }
+  local_time_decay(T, lt, decay);
   int err = 0, skipped = 0, nonconv = 0;
   int nth = parallel ? nthreads(o) : 1;
 #ifdef _OPENMP
@@ -845,16 +848,14 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
   {
     trop_qos_enter(o);
     ws_t *ws = ws_new(N, T, pf);
-    double *decay = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
-    if (!ws || !decay || !omega) {
+    if (!ws || !omega) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
       err = 1;
     } else {
       ws_use(ws, q);
-      local_time_decay(T, lt, decay);
     }
 #ifdef _OPENMP
 #pragma omp for schedule(dynamic, 1)
@@ -879,10 +880,10 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
       }
     }
     ws_free(ws);
-    free(decay);
     free(omega);
     trop_qos_leave(o);
   }
+  free(decay);
   if (err) { free(phisum); return TROP_ERR_ALLOC; }
   double sum = 0.0;
   int used = 0;
@@ -969,6 +970,9 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
   qsort(key, (size_t) n_cells, sizeof(int), cmp_int);
   for (int k = 0; k < n_cells; k++) ustart[key[k] / T + 1]++;
   for (int i = 0; i < N; i++) ustart[i + 1] += ustart[i];
+  double *decay = (double *) malloc((size_t) T * sizeof(double));
+  if (!decay) { free(cells); free(key); free(tau); free(ustart); return TROP_ERR_ALLOC; }
+  local_time_decay(T, lt, decay);
   int err = 0, nonconv = 0;
   int nth = nthreads(o);
 #ifdef _OPENMP
@@ -977,16 +981,14 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
   {
     trop_qos_enter(o);
     ws_t *ws = ws_new(N, T, q->pf);
-    double *decay = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
-    if (!ws || !decay || !omega) {
+    if (!ws || !omega) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
       err = 1;
     } else {
       ws_use(ws, q);
-      local_time_decay(T, lt, decay);
     }
 #ifdef _OPENMP
 #pragma omp for schedule(dynamic, 1)
@@ -1007,10 +1009,10 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
       }
     }
     ws_free(ws);
-    free(decay);
     free(omega);
     trop_qos_leave(o);
   }
+  free(decay);
   int rc = TROP_OK;
   if (err) {
     rc = TROP_ERR_ALLOC;
