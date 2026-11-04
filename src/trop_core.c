@@ -745,11 +745,14 @@ static void ws_use(ws_t *ws, const prep_t *q) {
  * weight is exp(-lt |t - s|). The unit weight is exp(-lu d_{-t}(j, i)). The
  * RMS gap uses the periods in which both units are observed controls, but not
  * period t. */
-static void local_weights(const prep_t *q, int i, int t, double lt, double lu,
-                          int exclude_target, double *w, double *theta, double *omega) {
+/* Use direct exponentials so underflow boundaries do not depend on recurrence rounding. */
+static void local_time_decay(int T, double lt, double *decay) {
+  for (int d = 0; d < T; d++) decay[d] = lt == 0.0 ? 1.0 : exp(-lt * (double) d);
+}
+
+static void local_weights(const prep_t *q, int i, int t, double lu,
+                          int exclude_target, double *w, const double *decay, double *omega) {
   int N = q->N, T = q->T;
-  /* Direct exponentials preserve zero weights at the underflow boundary. */
-  for (int s = 0; s < T; s++) theta[s] = lt == 0.0 ? 1.0 : exp(-lt * fabs((double) t - s));
   if (lu == 0.0) {
     for (int j = 0; j < N; j++) omega[j] = 1.0;
   } else {
@@ -769,7 +772,8 @@ static void local_weights(const prep_t *q, int i, int t, double lt, double lu,
     }
   }
   for (int s = 0; s < T; s++) {
-    double th = theta[s];
+    int d = (t > s) ? t - s : s - t;
+    double th = decay[d];
     double *ws_ = w + (size_t) N * s;
     const unsigned char *cs = q->ctrl + (size_t) N * s;
     for (int j = 0; j < N; j++) ws_[j] = cs[j] ? omega[j] * th : 0.0;
@@ -833,6 +837,9 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
     phisum = (double *) calloc((size_t) N * (size_t) pf, sizeof(double));
     if (!phisum) return TROP_ERR_ALLOC;
   }
+  double *decay = (double *) malloc((size_t) T * sizeof(double));
+  if (!decay) { free(phisum); return TROP_ERR_ALLOC; }
+  local_time_decay(T, lt, decay);
   int err = 0, skipped = 0, nonconv = 0;
   int nth = parallel ? nthreads(o) : 1;
 #ifdef _OPENMP
@@ -841,9 +848,8 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
   {
     trop_qos_enter(o);
     ws_t *ws = ws_new(N, T, pf);
-    double *theta = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
-    if (!ws || !theta || !omega) {
+    if (!ws || !omega) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
@@ -863,7 +869,7 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
         if (W[s] != 1 || !obs[s]) continue;
         size_t c = (size_t) i + (size_t) N * t;
         if (!isfinite(q->Y[c]) || !(obs[s])) continue;
-        local_weights(q, i, t, lt, lu, 0, ws->w, theta, omega);
+        local_weights(q, i, t, lu, 0, ws->w, decay, omega);
         if (!estimable(ws, ws->w, i, t)) { skipped++; continue; }
         if (!started || !o->warm) { ws_cold(ws); started = 1; }
         int it = 0;
@@ -874,10 +880,10 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
       }
     }
     ws_free(ws);
-    free(theta);
     free(omega);
     trop_qos_leave(o);
   }
+  free(decay);
   if (err) { free(phisum); return TROP_ERR_ALLOC; }
   double sum = 0.0;
   int used = 0;
@@ -964,6 +970,9 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
   qsort(key, (size_t) n_cells, sizeof(int), cmp_int);
   for (int k = 0; k < n_cells; k++) ustart[key[k] / T + 1]++;
   for (int i = 0; i < N; i++) ustart[i + 1] += ustart[i];
+  double *decay = (double *) malloc((size_t) T * sizeof(double));
+  if (!decay) { free(cells); free(key); free(tau); free(ustart); return TROP_ERR_ALLOC; }
+  local_time_decay(T, lt, decay);
   int err = 0, nonconv = 0;
   int nth = nthreads(o);
 #ifdef _OPENMP
@@ -972,9 +981,8 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
   {
     trop_qos_enter(o);
     ws_t *ws = ws_new(N, T, q->pf);
-    double *theta = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
-    if (!ws || !theta || !omega) {
+    if (!ws || !omega) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
@@ -991,7 +999,7 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
       for (int k = ustart[i]; k < ustart[i + 1]; k++) {
         int t = key[k] % T;
         size_t c = (size_t) i + (size_t) N * t;
-        local_weights(q, i, t, lt, lu, 1, ws->w, theta, omega);
+        local_weights(q, i, t, lu, 1, ws->w, decay, omega);
         if (!estimable(ws, ws->w, i, t)) { tau[k] = NAN; continue; }
         if (!started || !o->warm) { ws_cold(ws); started = 1; }
         int it = 0;
@@ -1001,10 +1009,10 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
       }
     }
     ws_free(ws);
-    free(theta);
     free(omega);
     trop_qos_leave(o);
   }
+  free(decay);
   int rc = TROP_OK;
   if (err) {
     rc = TROP_ERR_ALLOC;
