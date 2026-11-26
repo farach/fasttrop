@@ -32,9 +32,10 @@ Useful links:
 
 ## Author
 
-**Maintainer**: Alex Farach <alexfarach@microsoft.com> \[copyright
-holder\]
+**Maintainer**: Alex Farach <1520139+farach@users.noreply.github.com>
+\[copyright holder\]
 
 Authors:
 
-- Alex Farach <alexfarach@microsoft.com> \[copyright holder\]
+- Alex Farach <1520139+farach@users.noreply.github.com> \[copyright
+  holder\]

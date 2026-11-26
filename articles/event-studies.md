@@ -116,7 +116,7 @@ band columns are `NA`.
 ## Keep cells out of the estimate
 
 Sometimes the treatment is not complete in some treated cells. For
-example, a rollout can start in a period but reach all users only some
+example, a rollout can start in a period but reach all units only some
 periods later. The argument `target` keeps such cells out of the
 estimate.
 

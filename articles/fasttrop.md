@@ -126,7 +126,7 @@ summary(fit_cv)
 #>   Tuning: loocv, score 18.79, 34 grid evaluations
 #>   Bootstrap: 100 draws (stratified), 0 failed, normal interval
 #>   Treated units: 5 | Skipped cells: 0 | Non-converged fits: 0
-#>   Time: 1.153 s in total, 1.145 s in the C code (4 threads)
+#>   Time: 0.907 s in total, 0.900 s in the C code (4 threads)
 #>   fasttrop 0.3.0
 ```
 

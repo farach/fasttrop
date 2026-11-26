@@ -7,7 +7,7 @@ Key points
 - The difference from the Python package of the authors is larger, but
   it is still less than 3e-5. It comes from the less accurate solver of
   that package.
-- With each change to the code, 766 test expectations run on six
+- With each change to the code, 1,080 test expectations run on six
   platforms.
 - With a block design and random selection of the treated units, TROP
   had an error 44% to 62% smaller than TWFE imputation.
@@ -94,7 +94,7 @@ does not examine:
 - The number of threads does not change the results. With a seed, the
   results are the same in each run.
 
-The test suite has 766 expectations. GitHub Actions runs it with
+The test suite has 1,080 expectations. GitHub Actions runs it with
 `R CMD check --as-cran` on six platforms: Linux with four versions of R,
 macOS, and Windows.
 
