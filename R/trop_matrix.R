@@ -279,7 +279,8 @@ trop_run <- function(plan) {
   ci <- c(NA_real_, NA_real_)
   if (plan$se == "bootstrap") {
     bs <- .Call(C_bootstrap, p$Yb, p$W, p$obs, plan$Xb, plan$resid, if (plan$method == "local") 0L else 1L,
-                as.integer(if (plan$method == "global") design$k else 0L), lambda, plan$rows, ctrl)
+                as.integer(if (plan$method == "global") design$k else 0L), lambda, plan$rows, ctrl,
+                NULL, 0L)
     kernel <- kernel + bs$kernel_seconds
     draws <- bs$draws
     ok <- draws[is.finite(draws)]

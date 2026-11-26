@@ -118,10 +118,18 @@ int trop_global_search(const trop_panel *pc, int k, const int *sets, int n_sets,
 /* Unit bootstrap with fixed tuning parameters (Algorithm 3 of the paper). The
  * array rows is a B x N matrix in row-major order with resampled unit indices
  * that start at 0. Method 0 is local and method 1 is global, with k treated
- * periods. The array draws gets B estimates, with NaN for a failure. */
+ * periods. The array draws gets B estimates, with NaN for a failure.
+ *
+ * Group means (local method only): gid has n_layers layers of N x T cells in
+ * column-major order, indexed by the original unit. Each value is a group
+ * from 0 to n_groups - 1, or -1 for no group. A cell can be in one group of
+ * each layer. The array gdraws gets a B x n_groups column-major matrix of the
+ * mean effect of each group, with NaN for a group with no cell. Use gid = NULL
+ * for no groups. */
 int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
                    double lam_unit, double lam_nn, const int *rows, int B,
-                   const trop_opts *opt, trop_interrupt_fn chk, double *draws);
+                   const trop_opts *opt, trop_interrupt_fn chk, double *draws,
+                   const int *gid, int n_layers, int n_groups, double *gdraws);
 
 /* Wall-clock time in seconds from a high-resolution monotonic timer, in
  * trop_os.c. */

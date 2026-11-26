@@ -224,3 +224,61 @@ test_that("trop_stepdown rejects objects with different rows or no bootstrap", {
   expect_error(trop_stepdown(1), "`x` must be")
   expect_error(trop_stepdown(list(a, 1)), "Each element")
 })
+
+test_that("anticipation gives event time 0 to the first period after the anticipation", {
+  p <- small_panel(seed = 91, n_units = 20, n_treated = 6, design = "staggered")
+  l <- c(time = 0.3, unit = 0.5, nn = 1)
+  start <- first_treated(p$W)
+  W <- p$W
+  tgt <- matrix(TRUE, nrow(W), ncol(W))
+  for (i in which(!is.na(start) & start > 1L)) {
+    W[i, start[i] - 1L] <- 1L
+    tgt[i, start[i] - 1L] <- FALSE
+  }
+  fit <- suppressWarnings(trop_matrix(p$Y, W, lambda = l, se = "none", target = tgt,
+                                      control = small_control()))
+  ev <- trop_effects(fit, by = "event_time", anticipation = 1)
+  ok <- !is.na(start) & start > 1L
+  expect_equal(min(ev$event_time), 0)
+  expect_equal(ev$n_cells[ev$event_time == 0], sum(ok))
+  co <- trop_effects(fit, by = "cohort", anticipation = 1)
+  expect_setequal(co$cohort, unique(start[ok]))
+  expect_error(trop_effects(fit, anticipation = -1), "anticipation")
+  expect_error(trop_effects(fit, anticipation = 1.5), "anticipation")
+})
+
+test_that("treated cells that the target excludes make no empty group", {
+  p <- small_panel(seed = 93, n_units = 30, n_treated = 8, design = "staggered")
+  l <- c(time = 0.3, unit = 0.5, nn = 1)
+  start <- first_treated(p$W)
+  tgt <- matrix(TRUE, nrow(p$W), ncol(p$W))
+  for (i in which(!is.na(start))) tgt[i, start[i]] <- FALSE
+  rows <- trop_boot_rows(p$W, 20, seed = 4)
+  fit <- suppressWarnings(trop_matrix(p$Y, p$W, lambda = l, target = tgt, boot_rows = rows,
+                                      control = small_control()))
+  ev <- trop_effects(fit, by = "event_time")
+  expect_false(0 %in% ev$event_time)
+  expect_true(all(ev$n_cells > 0L))
+  expect_true(all(is.finite(ev$estimate)))
+  expect_equal(nrow(trop_stepdown(ev)), nrow(ev))
+})
+
+test_that("a list by gives the results of separate calls from one set of draws", {
+  p <- small_panel(seed = 95, n_units = 20, n_treated = 6, design = "staggered")
+  l <- c(time = 0.3, unit = 0.5, nn = 1)
+  rows <- trop_boot_rows(p$W, 15, seed = 6)
+  fit <- suppressWarnings(trop_matrix(p$Y, p$W, lambda = l, se = "none", control = small_control()))
+  m <- matrix(rep(1:2, length.out = length(p$W)), nrow(p$W))
+  both <- trop_effects(fit, by = list(event = "event_time", "cohort", half = m), boot_rows = rows)
+  expect_named(both, c("event", "cohort", "half"))
+  ev <- trop_effects(fit, by = "event_time", boot_rows = rows)
+  co <- trop_effects(fit, by = "cohort", boot_rows = rows)
+  expect_equal(both$event, ev, tolerance = 1e-12)
+  expect_equal(both$cohort, co, tolerance = 1e-12)
+  expect_s3_class(both$half, "trop_effects")
+  expect_equal(nrow(trop_stepdown(both)), nrow(ev) + nrow(co) + nrow(both$half))
+  expect_error(trop_effects(fit, by = list()), "at least 1")
+  expect_error(trop_effects(fit, by = list(m)), "Give a name")
+  expect_error(trop_effects(fit, by = list("cohort", cohort = "time")), "must be different")
+  expect_error(trop_effects(fit, by = list(1)), "one group name or a matrix")
+})

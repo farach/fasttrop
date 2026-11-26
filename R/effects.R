@@ -6,8 +6,9 @@
 #' bootstrap standard errors, intervals, and simultaneous bands for all groups.
 #'
 #' The function uses the effects `tau` of the fit. Thus, the target cells of the
-#' fit are the only cells in the groups. A fit that has an `NA` effect for a
-#' cell does not give a value for that cell.
+#' fit are the only cells in the groups. A cell that has no effect in the fit,
+#' for example a cell outside of the target, is not in a group. A group with no
+#' such cell is not in the result.
 #'
 #' @section Groups:
 #' The argument `by` sets the groups:
@@ -21,9 +22,31 @@
 #' * A matrix with the dimensions of the panel. The values are the group of each
 #'   cell. A cell with `NA` is not in a group. Only treated cells with an effect
 #'   are in groups.
+#' * A named list of the values above, for example
+#'   `list(event = "event_time", cohort = "cohort")`. The function then gives
+#'   a named list with one result for each element. All results use the same
+#'   bootstrap draws, and the function calculates the estimator only one time
+#'   for each draw. A character element without a name uses its value as the
+#'   name.
 #'
 #' The argument `window` limits the cells to cells with an event time in the
 #' window. For example, `window = c(0, 3)` uses the first 4 treated periods.
+#'
+#' @section Anticipation:
+#' Sometimes the treatment has an effect before it starts, for example when
+#' units know the start date. A usual procedure is to set `W = 1` in the
+#' periods before the start, so that these cells are not controls. Then, the
+#' first `W = 1` cell is not the true start.
+#'
+#' With `anticipation = k`, the
+#' function counts the first `k` treated periods of each run as the periods
+#' before the start. Thus, these periods get the event times `-k` to `-1`, and
+#' the event time 0 is the true start. The cohort is also the period of the
+#' true start. A cohort that starts after the last period of the panel is not
+#' in a group.
+#'
+#' To keep the anticipation cells out of the estimate, also remove
+#' them from the `target` of the fit.
 #'
 #' @section Inference:
 #' The bootstrap uses the unit draws of the fit. For each draw, the function
@@ -32,11 +55,18 @@
 #' change. The standard error of a group is the standard deviation of its draws.
 #' A group that has no treated cell in a draw has no value for that draw.
 #'
+#' The draws run in parallel with the `threads` of the control of the fit.
+#'
 #' By default, the function uses the draws that the fit stored in `fit$boot$rows`.
 #' Then the average of all treated cells has the same draws as `fit$boot$draws`.
 #' With `n_boot`, the function makes new draws. With `boot_rows`, you give the
 #' draws. A group of one fit and a group of another fit have a joint
 #' distribution only if they use the same draws.
+#'
+#' Each call calculates the estimator again for each draw. To get many sets of
+#' groups, give them in one list to `by`. To calculate the draws only one time,
+#' make the fit with `se = "none"`. Then include `"overall"` in the list, and
+#' give the draws with `boot_rows`.
 #'
 #' The columns `band.low` and `band.high` give a simultaneous band with the
 #' sup-t method. The band has a critical value for all groups. The critical
@@ -64,6 +94,9 @@
 #' @param ci Use `"normal"` or `"percentile"`. Refer to [trop()].
 #' @param seed An optional integer seed for new draws. The function does not
 #'   change the state of the random number generator in the R session.
+#' @param anticipation The number of treated periods at the start of each run
+#'   that come before the true start. Refer to the section Anticipation. The
+#'   default 0 uses the first treated period as the start.
 #'
 #' @return A data frame of class `trop_effects` with one row for each group.
 #'   The columns are the group (the name of the column is the value of `by`),
@@ -71,7 +104,8 @@
 #'   `conf.low`, `conf.high`, `band.low`, and `band.high` are also in the data
 #'   frame. The data frame has these attributes: `draws` (a matrix with one
 #'   column for each group), `rows` (the rows of the draws), and `critical` (the
-#'   critical value of the band).
+#'   critical value of the band). When `by` is a list, the result is a named
+#'   list of such data frames.
 #' @seealso [trop_boot_rows()], [trop_stepdown()]
 #' @examples
 #' sim <- trop_simulate(n_units = 20, n_periods = 12, n_treated = 5,
@@ -80,11 +114,15 @@
 #'             lambda = c(time = 0.2, unit = 0.5, nn = 0.5),
 #'             n_boot = 50, seed = 1, control = trop_control(threads = 1))
 #' trop_effects(fit, by = "event_time")
+#'
+#' # Two sets of groups with one bootstrap sweep.
+#' both <- trop_effects(fit, by = list(event = "event_time", time = "time"))
+#' trop_stepdown(both)
 #' @export
 trop_effects <- function(fit, by = c("event_time", "cohort", "time", "unit", "overall"),
                          window = NULL, n_boot = NULL, boot_rows = NULL, strata = NULL,
                          resample = NULL, conf_level = fit$conf.level,
-                         ci = c("normal", "percentile"), seed = NULL) {
+                         ci = c("normal", "percentile"), seed = NULL, anticipation = 0L) {
   if (!inherits(fit, "trop")) stop("`fit` must be a `trop` object.", call. = FALSE)
   if (is.null(fit$panel)) {
     stop("`fit` does not contain the panel. Calculate the fit again with this version of fasttrop.",
@@ -103,19 +141,15 @@ trop_effects <- function(fit, by = c("event_time", "cohort", "time", "unit", "ov
     stop("Use `strata` or `boot_rows`, not both. `boot_rows` has the draws, and `strata` makes them.",
          call. = FALSE)
   }
-  grp <- effect_groups(by, P$W, window, fit$units, fit$times)
-  G <- length(grp$labels)
-
-  tau <- fit$tau
-  use <- is.finite(tau) & !is.na(grp$id)
-  est <- rep(NA_real_, G)
-  n_cells <- tabulate(grp$id[use], G)
-  s <- rowsum(tau[use], grp$id[use])
-  ix <- as.integer(rownames(s))
-  est[ix] <- s[, 1L] / n_cells[ix]
-
-  out <- data.frame(group = grp$labels, estimate = est, n_cells = n_cells)
-  names(out)[1L] <- grp$name
+  if (!is.numeric(anticipation) || length(anticipation) != 1L || is.na(anticipation) ||
+      anticipation < 0 || anticipation != round(anticipation)) {
+    stop("`anticipation` must be one integer that is 0 or more.", call. = FALSE)
+  }
+  anticipation <- as.integer(anticipation)
+  multi <- is.list(by) && !is.data.frame(by)
+  specs <- if (multi) effect_specs(by) else list(by)
+  groups <- lapply(specs, effect_groups, W = P$W, tau = fit$tau, window = window,
+                   units = fit$units, times = fit$times, anticipation = anticipation)
 
   rows <- NULL
   if (!is.null(boot_rows)) {
@@ -137,10 +171,54 @@ trop_effects <- function(fit, by = c("event_time", "cohort", "time", "unit", "ov
                              strata)
   }
 
+  sizes <- vapply(groups, function(g) length(g$labels), integer(1))
+  draws <- if (is.null(rows)) NULL else effects_boot(fit, lapply(groups, `[[`, "id"), sizes, rows)
+  ends <- cumsum(sizes)
+  out <- lapply(seq_along(groups), function(k) {
+    d <- if (is.null(draws)) NULL else draws[, (ends[k] - sizes[k] + 1L):ends[k], drop = FALSE]
+    effects_table(groups[[k]], fit$tau, d, rows, conf_level, ci)
+  })
+  if (!multi) return(out[[1L]])
+  names(out) <- names(specs)
+  out
+}
+
+# The named elements of a list `by`.
+effect_specs <- function(by) {
+  if (length(by) == 0L) stop("When `by` is a list, it must have at least 1 element.", call. = FALSE)
+  nm <- names(by)
+  if (is.null(nm)) nm <- rep("", length(by))
+  for (k in seq_along(by)) {
+    b <- by[[k]]
+    ok <- (is.character(b) && length(b) == 1L) || is.matrix(b)
+    if (!ok) {
+      stop("Each element of the list `by` must be one group name or a matrix.", call. = FALSE)
+    }
+    if (!nzchar(nm[k])) {
+      if (is.matrix(b)) stop("Give a name to each matrix in the list `by`.", call. = FALSE)
+      nm[k] <- b
+    }
+  }
+  if (anyDuplicated(nm)) stop("The names of the list `by` must be different.", call. = FALSE)
+  names(by) <- nm
+  by
+}
+
+# The result for one set of groups.
+effects_table <- function(grp, tau, draws, rows, conf_level, ci) {
+  G <- length(grp$labels)
+  use <- is.finite(tau) & !is.na(grp$id)
+  est <- rep(NA_real_, G)
+  n_cells <- tabulate(grp$id[use], G)
+  s <- rowsum(tau[use], grp$id[use])
+  ix <- as.integer(rownames(s))
+  est[ix] <- s[, 1L] / n_cells[ix]
+
+  out <- data.frame(group = grp$labels, estimate = est, n_cells = n_cells)
+  names(out)[1L] <- grp$name
   attr(out, "by") <- grp$name
   attr(out, "conf.level") <- conf_level
-  if (!is.null(rows)) {
-    draws <- effects_boot(fit, grp$id, G, rows)
+  if (!is.null(draws)) {
     colnames(draws) <- as.character(grp$labels)
     se <- apply(draws, 2L, function(v) {
       v <- v[is.finite(v)]
@@ -200,14 +278,16 @@ as.data.frame.trop_effects <- function(x, row.names = NULL, optional = FALSE, ..
 }
 
 # Find the group of each treated cell. The result has the group numbers (NA
-# for a cell that is in no group) and the labels of the groups.
-effect_groups <- function(by, W, window, units, times) {
+# for a cell that is in no group) and the labels of the groups. Only cells with
+# an effect in `tau` make groups. With `anticipation = k`, the first k periods
+# of each run get negative event times, and the cohort is the period after them.
+effect_groups <- function(by, W, tau, window, units, times, anticipation = 0L) {
   N <- nrow(W)
   TT <- ncol(W)
   start <- run_start(W)
   event <- matrix(NA_integer_, N, TT)
   has <- !is.na(start)
-  event[has] <- (col(W) - start)[has]
+  event[has] <- (col(W) - start)[has] - anticipation
   if (is.matrix(by)) {
     if (!all(dim(by) == dim(W))) {
       stop("When `by` is a matrix, it must have the dimensions of the panel.", call. = FALSE)
@@ -216,10 +296,12 @@ effect_groups <- function(by, W, window, units, times) {
     name <- "group"
   } else {
     name <- by <- match.arg(by, c("event_time", "cohort", "time", "unit", "overall"))
-    key <- switch(by, event_time = event, cohort = start, time = col(W) * 1L, unit = row(W) * 1L,
-                  overall = matrix(1L, N, TT))
+    cohort <- start + anticipation
+    cohort[!is.na(cohort) & cohort > TT] <- NA
+    key <- switch(by, event_time = event, cohort = cohort, time = col(W) * 1L,
+                  unit = row(W) * 1L, overall = matrix(1L, N, TT))
   }
-  key[W != 1L] <- NA
+  key[W != 1L | !is.finite(tau)] <- NA
   if (!is.null(window)) {
     if (!is.numeric(window) || length(window) != 2L || anyNA(window) || window[1L] > window[2L]) {
       stop("`window` must be 2 numbers, from the first to the last event time.", call. = FALSE)
@@ -227,7 +309,7 @@ effect_groups <- function(by, W, window, units, times) {
     key[is.na(event) | event < window[1L] | event > window[2L]] <- NA
   }
   lev <- sort(unique(key[!is.na(key)]))
-  if (length(lev) == 0L) stop("No treated cell is in a group.", call. = FALSE)
+  if (length(lev) == 0L) stop("No treated cell with an effect is in a group.", call. = FALSE)
   labels <- switch(name,
     cohort = , time = if (is.null(times)) lev else times[lev],
     unit = if (is.null(units)) lev else units[lev],
@@ -251,44 +333,30 @@ run_start <- function(W) {
   out
 }
 
-# Draw the group means. Each draw calculates the local estimator again.
-effects_boot <- function(fit, id, G, rows) {
+# Draw the group means. The C code calculates the local estimator again for
+# each draw, in parallel, and averages the effects of all sets of groups.
+effects_boot <- function(fit, ids, sizes, rows) {
   P <- fit$panel
-  ctrl <- unclass(fit$control)
-  B <- nrow(rows)
-  draws <- matrix(NA_real_, B, G)
-  failed <- 0L
-  for (b in seq_len(B)) {
-    rb <- rows[b, ]
-    Yb <- P$Y[rb, , drop = FALSE]
-    Wb <- P$W[rb, , drop = FALSE]
-    ob <- matrix(as.integer(is.finite(Yb)), nrow(Yb), ncol(Yb))
-    Xb <- if (is.null(P$X)) NULL else P$X[rb, , , drop = FALSE]
-    est <- tryCatch({
-      if (isTRUE(P$resid) && !is.null(Xb)) {
-        phi <- .Call(C_residualize, Yb, Wb, ob, Xb, ctrl)
-        Yb <- subtract_xphi(Yb, Xb, phi)
-        Xb <- NULL
-      }
-      .Call(C_local_estimate, Yb, Wb, ob, Xb, fit$lambda, ctrl)
-    }, error = function(e) NULL)
-    if (is.null(est)) {
-      failed <- failed + 1L
-      next
-    }
-    gb <- id[rb, , drop = FALSE]
-    ok <- is.finite(est$tau) & !is.na(gb)
-    if (!any(ok)) next
-    n <- tabulate(gb[ok], G)
-    s <- rowsum(est$tau[ok], gb[ok])
-    ix <- as.integer(rownames(s))
-    draws[b, ix] <- s[, 1L] / n[ix]
-  }
+  N <- nrow(P$W)
+  TT <- ncol(P$W)
+  offset <- cumsum(c(0L, sizes))[seq_along(ids)]
+  gid <- unlist(lapply(seq_along(ids), function(k) {
+    g <- as.vector(ids[[k]]) - 1L + offset[k]
+    g[is.na(g)] <- -1L
+    g
+  }), use.names = FALSE)
+  storage.mode(gid) <- "integer"
+  obs <- matrix(as.integer(is.finite(P$Y)), N, TT)
+  r0 <- rows - 1L
+  storage.mode(r0) <- "integer"
+  bs <- .Call(C_bootstrap, P$Y, P$W, obs, P$X, isTRUE(P$resid), 0L, 0L, fit$lambda, r0,
+              unclass(fit$control), gid, as.integer(sum(sizes)))
+  failed <- sum(!is.finite(bs$draws))
   if (failed > 0L) {
-    warning(failed, " of ", B, " bootstrap draws failed. The standard errors do not use these draws.",
+    warning(failed, " of ", nrow(rows), " bootstrap draws failed. The standard errors do not use these draws.",
             call. = FALSE)
   }
-  draws
+  bs$group_draws
 }
 
 # The critical value of the sup-t band: a quantile of the largest absolute

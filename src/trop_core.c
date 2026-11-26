@@ -1351,8 +1351,14 @@ done:
 
 int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
                    double lam_unit, double lam_nn, const int *rows, int B,
-                   const trop_opts *opt, trop_interrupt_fn chk, double *draws) {
+                   const trop_opts *opt, trop_interrupt_fn chk, double *draws,
+                   const int *gid, int n_layers, int n_groups, double *gdraws) {
   int N = p->N, T = p->T;
+  int groups = gid != NULL && gdraws != NULL && n_layers > 0 && n_groups > 0 && method == 0;
+  size_t NT = (size_t) N * (size_t) T;
+  if (gdraws && n_groups > 0) {
+    for (size_t c = 0; c < (size_t) B * (size_t) n_groups; c++) gdraws[c] = NAN;
+  }
   int nth = nthreads(opt);
   int chunk = 32 * nth;
   int err = 0;
@@ -1372,7 +1378,10 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
       int *Wb = (int *) malloc((size_t) N * (size_t) T * sizeof(int));
       int *ob = (int *) malloc((size_t) N * (size_t) T * sizeof(int));
       int *tr = (int *) malloc((size_t) N * sizeof(int));
-      if (!q || !ws || !theta || !omega || !avg || !tau || !Wb || !ob || !tr) {
+      double *gsum = groups ? (double *) malloc((size_t) n_groups * sizeof(double)) : NULL;
+      int *gcnt = groups ? (int *) malloc((size_t) n_groups * sizeof(int)) : NULL;
+      if (!q || !ws || !theta || !omega || !avg || !tau || !Wb || !ob || !tr ||
+          (groups && (!gsum || !gcnt))) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
@@ -1415,9 +1424,26 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
                         : TROP_ERR_INPUT;
         }
         draws[b] = (rc == TROP_OK) ? a : NAN;
+        if (groups && rc == TROP_OK) {
+          for (int g = 0; g < n_groups; g++) { gsum[g] = 0.0; gcnt[g] = 0; }
+          for (int t = 0; t < T; t++) {
+            for (int i = 0; i < N; i++) {
+              double v = tau[(size_t) i + (size_t) N * t];
+              if (!isfinite(v)) continue;
+              size_t s = (size_t) rb[i] + (size_t) N * t;
+              for (int l = 0; l < n_layers; l++) {
+                int g = gid[(size_t) l * NT + s];
+                if (g >= 0 && g < n_groups) { gsum[g] += v; gcnt[g]++; }
+              }
+            }
+          }
+          for (int g = 0; g < n_groups; g++) {
+            if (gcnt[g] > 0) gdraws[(size_t) b + (size_t) B * g] = gsum[g] / gcnt[g];
+          }
+        }
       }
       prep_free(q); ws_free(ws); free(theta); free(omega); free(avg); free(tau);
-      free(Wb); free(ob); free(tr);
+      free(Wb); free(ob); free(tr); free(gsum); free(gcnt);
       trop_qos_leave(opt);
     }
     if (!err && chk && chk()) return TROP_ERR_INTERRUPT;

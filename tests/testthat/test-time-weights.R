@@ -34,7 +34,7 @@ test_that("local time weights retain direct-exponential underflow boundaries", {
 
         rows <- matrix(rep(0:2, each = 2L), 2L, 3L)
         boot <- .Call(fasttrop:::C_bootstrap, inp$Y, inp$W, inp$obs,
-                      NULL, FALSE, 0L, 0L, lambda, rows, ctl)
+                      NULL, FALSE, 0L, 0L, lambda, rows, ctl, NULL, 0L)
         expect_equal(boot$draws, rep(est$att, 2L), tolerance = 0)
       }
     }

@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     if (rc != TROP_OK) { fprintf(stderr, "estimate failed %d\n", rc); return 4; }
     double t2 = trop_wtime();
     if (B > 0) {
-      rc = trop_bootstrap(&p, method, k, best[0], best[1], best[2], rows, B, &o, NULL, draws);
+      rc = trop_bootstrap(&p, method, k, best[0], best[1], best[2], rows, B, &o, NULL, draws, NULL, 0, 0, NULL);
       if (rc != TROP_OK) { fprintf(stderr, "bootstrap failed %d\n", rc); return 5; }
     }
     double t3 = trop_wtime();

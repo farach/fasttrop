@@ -1,3 +1,24 @@
+# fasttrop (development version)
+
+## Effects by group
+
+- `trop_effects()` accepts a named list in `by`. It makes all the sets of
+  groups from one set of bootstrap draws and returns a named list of
+  `trop_effects` objects. Give this list to `trop_stepdown()`. Before, each
+  set of groups needed a new set of draws.
+- The new argument `anticipation` of `trop_effects()` gives event time 0 to
+  the first period after the anticipation periods. The cohort is this period.
+  Use it when you set the anticipation periods to `W = 1` and remove them from
+  `target`. The default, 0, gives the result of version 0.3.0.
+- The bootstrap of `trop_effects()` runs in the C code, in parallel with
+  `threads`. Before, it ran in R, one draw after another.
+
+## Bug fixes
+
+- In `trop_effects()`, a treated cell that `target` removes is not in a group.
+  Before, such cells made a group with no cells. That group had no
+  estimate, and `trop_stepdown()` then gave an error.
+
 # fasttrop 0.3.0
 
 This version adds tools for real studies with many treated cells, many groups,

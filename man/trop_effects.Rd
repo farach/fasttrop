@@ -16,7 +16,8 @@ trop_effects(
   resample = NULL,
   conf_level = fit$conf.level,
   ci = c("normal", "percentile"),
-  seed = NULL
+  seed = NULL,
+  anticipation = 0L
 )
 
 \method{print}{trop_effects}(x, digits = 4L, ...)
@@ -50,6 +51,10 @@ setting of the fit.}
 \item{seed}{An optional integer seed for new draws. The function does not
 change the state of the random number generator in the R session.}
 
+\item{anticipation}{The number of treated periods at the start of each run
+that come before the true start. Refer to the section Anticipation. The
+default 0 uses the first treated period as the start.}
+
 \item{x}{A \code{trop_effects} object.}
 
 \item{digits}{The number of significant digits to show.}
@@ -65,7 +70,8 @@ The columns are the group (the name of the column is the value of \code{by}),
 \code{conf.low}, \code{conf.high}, \code{band.low}, and \code{band.high} are also in the data
 frame. The data frame has these attributes: \code{draws} (a matrix with one
 column for each group), \code{rows} (the rows of the draws), and \code{critical} (the
-critical value of the band).
+critical value of the band). When \code{by} is a list, the result is a named
+list of such data frames.
 }
 \description{
 \code{trop_effects()} averages the effects of the treated cells of a \code{\link[=trop]{trop()}} fit
@@ -75,8 +81,9 @@ bootstrap standard errors, intervals, and simultaneous bands for all groups.
 }
 \details{
 The function uses the effects \code{tau} of the fit. Thus, the target cells of the
-fit are the only cells in the groups. A fit that has an \code{NA} effect for a
-cell does not give a value for that cell.
+fit are the only cells in the groups. A cell that has no effect in the fit,
+for example a cell outside of the target, is not in a group. A group with no
+such cell is not in the result.
 }
 \section{Groups}{
 
@@ -92,10 +99,34 @@ treatment and starts it again, the count starts again.
 \item A matrix with the dimensions of the panel. The values are the group of each
 cell. A cell with \code{NA} is not in a group. Only treated cells with an effect
 are in groups.
+\item A named list of the values above, for example
+\code{list(event = "event_time", cohort = "cohort")}. The function then gives
+a named list with one result for each element. All results use the same
+bootstrap draws, and the function calculates the estimator only one time
+for each draw. A character element without a name uses its value as the
+name.
 }
 
 The argument \code{window} limits the cells to cells with an event time in the
 window. For example, \code{window = c(0, 3)} uses the first 4 treated periods.
+}
+
+\section{Anticipation}{
+
+Sometimes the treatment has an effect before it starts, for example when
+units know the start date. A usual procedure is to set \code{W = 1} in the
+periods before the start, so that these cells are not controls. Then, the
+first \code{W = 1} cell is not the true start.
+
+With \code{anticipation = k}, the
+function counts the first \code{k} treated periods of each run as the periods
+before the start. Thus, these periods get the event times \code{-k} to \code{-1}, and
+the event time 0 is the true start. The cohort is also the period of the
+true start. A cohort that starts after the last period of the panel is not
+in a group.
+
+To keep the anticipation cells out of the estimate, also remove
+them from the \code{target} of the fit.
 }
 
 \section{Inference}{
@@ -106,11 +137,18 @@ Then it averages the effects of each group. The tuning parameters do not
 change. The standard error of a group is the standard deviation of its draws.
 A group that has no treated cell in a draw has no value for that draw.
 
+The draws run in parallel with the \code{threads} of the control of the fit.
+
 By default, the function uses the draws that the fit stored in \code{fit$boot$rows}.
 Then the average of all treated cells has the same draws as \code{fit$boot$draws}.
 With \code{n_boot}, the function makes new draws. With \code{boot_rows}, you give the
 draws. A group of one fit and a group of another fit have a joint
 distribution only if they use the same draws.
+
+Each call calculates the estimator again for each draw. To get many sets of
+groups, give them in one list to \code{by}. To calculate the draws only one time,
+make the fit with \code{se = "none"}. Then include \code{"overall"} in the list, and
+give the draws with \code{boot_rows}.
 
 The columns \code{band.low} and \code{band.high} give a simultaneous band with the
 sup-t method. The band has a critical value for all groups. The critical
@@ -129,6 +167,10 @@ fit <- trop(sim, "y", "d", "unit", "time",
             lambda = c(time = 0.2, unit = 0.5, nn = 0.5),
             n_boot = 50, seed = 1, control = trop_control(threads = 1))
 trop_effects(fit, by = "event_time")
+
+# Two sets of groups with one bootstrap sweep.
+both <- trop_effects(fit, by = list(event = "event_time", time = "time"))
+trop_stepdown(both)
 }
 \seealso{
 \code{\link[=trop_boot_rows]{trop_boot_rows()}}, \code{\link[=trop_stepdown]{trop_stepdown()}}

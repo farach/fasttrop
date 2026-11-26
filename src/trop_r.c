@@ -341,7 +341,7 @@ SEXP C_global_search(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP sets
 }
 
 SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP resid, SEXP method, SEXP k, SEXP lambda,
-                 SEXP rows, SEXP control) {
+                 SEXP rows, SEXP control, SEXP gid, SEXP n_groups) {
   trop_panel p = read_panel(Y, W, obs, X);
   p.resid = Rf_asLogical(resid) == 1;
   trop_opts o = read_opts(control);
@@ -360,19 +360,33 @@ SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP resid, SEXP method, SEXP
       if (v < 0 || v >= p.N) Rf_error("`rows` contains a unit index that is out of range.");
       rm[(size_t) b * (size_t) p.N + (size_t) i] = v;
     }
+  /* gid is NULL or an integer array of N x T x layers group numbers, with -1
+   * for no group. The result has a B x n_groups matrix of group means. */
+  int G = 0, L = 0;
+  const int *gp = NULL;
+  if (!Rf_isNull(gid)) {
+    R_xlen_t NT = (R_xlen_t) p.N * (R_xlen_t) p.T;
+    if (TYPEOF(gid) != INTSXP || XLENGTH(gid) % NT != 0) Rf_error("`gid` must have N x T x layers integers.");
+    G = Rf_asInteger(n_groups);
+    if (G < 1) Rf_error("`n_groups` must be positive.");
+    L = (int) (XLENGTH(gid) / NT);
+    gp = INTEGER(gid);
+  }
   SEXP draws = PROTECT(Rf_allocVector(REALSXP, B));
+  SEXP gdraws = PROTECT(Rf_allocMatrix(REALSXP, G > 0 ? B : 0, G));
   double t0 = trop_wtime();
   trop_qos_enter(&o);
   int rc = trop_bootstrap(&p, Rf_asInteger(method), Rf_asInteger(k), lt, lu, ln, rm, B, &o,
-                          r_interrupt, REAL(draws));
+                          r_interrupt, REAL(draws), gp, L, G, G > 0 ? REAL(gdraws) : NULL);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
-  if (rc != TROP_OK) { UNPROTECT(1); fail_rc(rc); }
-  const char *nm[] = {"draws", "kernel_seconds"};
-  SEXP out = PROTECT(named_list(2, nm));
+  if (rc != TROP_OK) { UNPROTECT(2); fail_rc(rc); }
+  const char *nm[] = {"draws", "kernel_seconds", "group_draws"};
+  SEXP out = PROTECT(named_list(3, nm));
   SET_VECTOR_ELT(out, 0, draws);
   SET_VECTOR_ELT(out, 1, Rf_ScalarReal(el));
-  UNPROTECT(2);
+  SET_VECTOR_ELT(out, 2, gdraws);
+  UNPROTECT(3);
   return out;
 }
 
@@ -393,7 +407,7 @@ static const R_CallMethodDef call_methods[] = {
   {"C_global_estimate", (DL_FUNC) &C_global_estimate, 8},
   {"C_global_placebo", (DL_FUNC) &C_global_placebo, 8},
   {"C_global_search", (DL_FUNC) &C_global_search, 12},
-  {"C_bootstrap", (DL_FUNC) &C_bootstrap, 10},
+  {"C_bootstrap", (DL_FUNC) &C_bootstrap, 12},
   {"C_openmp_threads", (DL_FUNC) &C_openmp_threads, 0},
   {NULL, NULL, 0}
 };
