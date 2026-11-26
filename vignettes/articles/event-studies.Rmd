@@ -20,15 +20,15 @@ Key points
   one group only.
 - The argument `target` keeps some treated cells out of the estimate. Use it
   when the treatment is not complete in those cells.
-- `trop_boot_rows()` and `trop_stepdown()` adjust the p-values of many tests.
-  All tests must use the same bootstrap rows.
+- Use `trop_boot_rows()` to draw the same units for all tests.
+  Use `trop_stepdown()` to adjust the p-values.
 - This article uses practice data. The data have a known effect.
 :::
 
 ## A practice panel
 
 The panel has 40 units and 20 periods. Twelve units get the treatment. The
-start of the treatment is different for each unit. This is a staggered
+treated units do not all start treatment in the same period. This is a staggered
 design. The true effect is 1 in each treated cell.
 
 ```{r data}
@@ -69,6 +69,9 @@ The estimate of a group is the mean of the effects of its cells. The column
 the fit. Thus, the draws of all groups come from the same resamples of units.
 This is necessary for the band.
 
+Compare `n_cells` across the rows. Units that
+start treatment late can contribute to the first event time but not the last.
+
 ```{r effects-fig, echo = FALSE, fig.asp = 0.55, fig.cap = "The effect for each event time of the practice panel. The points are the estimates, the thick bars are the 95% intervals for one event time, and the light band covers all event times together. The dashed line is the true effect of 1.", fig.alt = "A chart with the event time on the horizontal axis and the estimated effect on the vertical axis. Teal points show the estimate for each event time. Thick teal bars show the interval for each point. A wider light teal band shows the simultaneous band. A dashed grey line marks the true effect of 1."}
 df <- as.data.frame(ev)
 ggplot(df, aes(event_time, estimate)) +
@@ -86,9 +89,8 @@ time. An interval for one event time gives no such evidence. If you compare
 many intervals, one of them can exclude 0 by chance.
 
 The band is a sup-t band. Its critical value is a quantile of the largest
-absolute standardized draw over the groups. The band is accurate only with
-many draws. With a small number of draws, the band is not accurate. With one
-group, the band columns are `NA`.
+absolute standardized draw over the groups. With few draws, this quantile can
+change substantially with the seed. With one group, the band columns are `NA`.
 
 ## Keep cells out of the estimate
 
@@ -97,7 +99,8 @@ rollout can start in a period but reach all users only some periods later. The
 argument `target` keeps such cells out of the estimate.
 
 Give `target` as a column of the data with the values `TRUE` and `FALSE`. A
-cell with `FALSE` stays in the panel, but it is not in the estimate. In the
+treated cell with `FALSE` stays in the panel, but the fit does not use its
+outcome. Untreated cells can still supply data for the fit. In the
 next fit, the cells in the last 2 periods are outside of the target.
 
 ```{r target, warning = FALSE}
@@ -109,11 +112,11 @@ c(treated_cells = fit_t$n_treated_cells, outside_target = fit_t$n_excluded_cells
 ```
 
 The two estimates can be different. The second estimate does not use the
-cells in the last 2 periods. The result `n_excluded_cells` counts the treated
+treated outcomes in the last 2 periods. The result `n_excluded_cells` counts the treated
 cells that are not in the estimate. The printed fit shows the same number.
 
-Use `target` only for a reason that is not in the outcomes. If you choose
-the target after you see the effects, the estimate is not correct.
+Choose the target before you examine the outcomes. Record which treated
+cells it includes and why they answer your question.
 
 ## Adjust the p-values of many tests
 
@@ -124,7 +127,8 @@ probability of one or more false rejections.
 
 The method must have the joint bootstrap distribution of all estimates. Thus, all
 estimates must use the same resampled units. To do this, make the rows once
-with `trop_boot_rows()`. Then give the rows to each fit.
+with `trop_boot_rows()`. Use the same units in the same order for each fit.
+Then give the rows to each fit.
 
 The example has two outcomes. The first outcome is `y`. Its true effect is 1.
 The second outcome is `y0`, the outcome without the treatment. Its true effect
@@ -158,46 +162,10 @@ treated units and the number of untreated units in each group. The argument
 `resample = "controls"` keeps the treated units fixed and resamples only the
 untreated units.
 
-## Put the grid on the scale of the outcome
-
-The grid of `trop_grid()` uses fixed values. The best values of the
-unit parameter and of the nuclear norm parameter depend on the scale of the
-outcome. An outcome in large units can make the search choose the edge of the
-grid.
-
-The function `trop_grid_scaled()` makes a grid that follows the scale of the
-data. It divides the values of `unit` by the median distance between two
-units. It multiplies the finite values of `nn` by the root mean square of the
-residuals of a two-way fixed effects fit. The values of `time` do not change.
-
-```{r grid}
-Y <- tapply(panel$y, list(panel$unit, panel$time), sum)
-g1 <- trop_grid_scaled(Y, W)
-g100 <- trop_grid_scaled(100 * Y, W)
-rbind(outcome = unlist(attr(g1, "scales")), outcome_times_100 = unlist(attr(g100, "scales")))
-```
-
-The scales are 100 times larger for the outcome in larger units. Thus, the
-same relative grid applies to both outcomes. To use the scaled grid in a fit,
-set `grid = "auto"`.
-
-When the cross-validation chooses a value at the edge of the grid,
-`trop()` gives a warning message. A value outside of the grid can fit better.
-Use a wider grid or `grid = "auto"`. The result `cv$boundary` names the
-values at the edge.
-
-## Remove the unit means
-
-The argument `demean = TRUE` subtracts the mean of each unit before the fit.
-A unit effect absorbs a constant for each unit. Thus, the effects do not
-change when the unit parameter is 0. When the unit parameter is more than 0,
-the unit distances do not include the difference in the level of the units.
-
 ## Record the version
 
-Each fit stores the version of fasttrop, and the commit when the package comes
-from GitHub, in `fit$package`. The summary prints them. Keep this line with
-your results. It tells which version made them.
+Keep `fit$package` and `fit$lambda` with your results. For a fit that uses
+cross-validation, see [Choose a tuning grid](tuning-grid.html).
 
 ```{r package}
 fit$package

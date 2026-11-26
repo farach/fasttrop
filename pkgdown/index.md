@@ -111,6 +111,15 @@ summary(fit)
 The article [Get started](articles/fasttrop.html) explains each step and the
 output.
 
+## After your first fit
+
+- To see how the effect changes after treatment starts, use
+  [Effects by group and many tests](articles/event-studies.html).
+  The example shows how to read the band for all event times.
+- If the fit reports a value at the edge of the grid, use
+  [Choose a tuning grid](articles/tuning-grid.html).
+  It shows how to change the grid when you change the units of the outcome.
+
 ## Who made what
 
 The TROP method is from Susan Athey, Guido Imbens, Zhaonan Qu, and Davide
