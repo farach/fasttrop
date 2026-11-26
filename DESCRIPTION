@@ -2,7 +2,7 @@ Package: fasttrop
 Title: Fast Triply Robust Panel Estimators
 Version: 0.3.0
 Authors@R:
-    person("Alex", "Farach", email = "alexfarach@microsoft.com",
+    person("Alex", "Farach", email = "1520139+farach@users.noreply.github.com",
            role = c("aut", "cre", "cph"))
 Description: The Triply Robust Panel (TROP) estimator of Athey, Imbens, Qu,
     and Viviano (2026) <doi:10.1002/jae.70061> gives the average treatment
