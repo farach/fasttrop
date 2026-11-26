@@ -27,13 +27,15 @@ trop_matrix <- function(Y, W, method = c("local", "global"), lambda = NULL, grid
                         se = c("bootstrap", "none"), n_boot = 200L,
                         resample = c("stratified", "controls"), conf_level = 0.95,
                         ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
-                        X = NULL, covariate_method = c("joint", "residualize")) {
+                        X = NULL, covariate_method = c("joint", "residualize"),
+                        target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE) {
   t0 <- Sys.time()
   plan <- trop_prepare(Y, W, method = method, lambda = lambda, grid = grid, cv_cells = cv_cells,
                        n_placebo = n_placebo, placebo_size = placebo_size, max_cycles = max_cycles,
                        se = se, n_boot = n_boot, resample = resample, conf_level = conf_level,
                        ci = ci, control = control, seed = seed, X = X,
-                       covariate_method = covariate_method)
+                       covariate_method = covariate_method, target = target, strata = strata,
+                       boot_rows = boot_rows, demean = demean)
   fit <- trop_run(plan)
   fit$call <- match.call()
   fit$timing$total_seconds <- as.double(difftime(Sys.time(), t0, units = "secs"))
@@ -54,20 +56,47 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
                          se = c("bootstrap", "none"), n_boot = 200L,
                          resample = c("stratified", "controls"), conf_level = 0.95,
                          ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
-                         X = NULL, covariate_method = c("joint", "residualize")) {
+                         X = NULL, covariate_method = c("joint", "residualize"),
+                         target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE) {
   method <- match.arg(method)
   covariate_method <- match.arg(covariate_method)
   se <- match.arg(se)
   resample <- match.arg(resample)
   ci <- match.arg(ci)
-  if (!inherits(grid, "trop_grid")) grid <- do.call(trop_grid, as.list(grid))
+  grid_auto <- is.character(grid) && length(grid) == 1L && grid == "auto"
+  if (is.character(grid) && !grid_auto) {
+    stop("`grid` must be a `trop_grid()` object, a list of values, or \"auto\".", call. = FALSE)
+  }
+  if (!grid_auto && !inherits(grid, "trop_grid")) grid <- do.call(trop_grid, as.list(grid))
   if (!inherits(control, "trop_control")) control <- do.call(trop_control, as.list(control))
   check_count(max_cycles, "max_cycles")
+  check_flag(demean, "demean")
   if (!is.numeric(conf_level) || length(conf_level) != 1L || conf_level <= 0 || conf_level >= 1) {
     stop("`conf_level` must be more than 0 and less than 1.", call. = FALSE)
   }
+  if (!is.null(strata) && !is.null(boot_rows)) {
+    stop("Use `strata` or `boot_rows`, not both. `boot_rows` has the draws, and `strata` makes them.",
+         call. = FALSE)
+  }
+  if (!is.null(target) && method == "global") {
+    stop("`target` is only for `method = \"local\"`. The global method fits all treated cells together.",
+         call. = FALSE)
+  }
   if (!is.null(lambda)) lambda <- as_lambda(lambda)
   p <- as_panel_inputs(Y, W)
+  n_excluded <- 0L
+  if (!is.null(target)) {
+    target <- as_target(target, p$W)
+    drop <- p$W == 1L & !target
+    if (!any(p$W == 1L & target & p$obs == 1L)) {
+      stop("`target` has no treated cell with an outcome.", call. = FALSE)
+    }
+    n_excluded <- sum(drop & p$obs == 1L)
+    p$Y[drop] <- NA_real_
+    p$obs[drop] <- 0L
+  }
+  if (demean) p$Y <- demean_units(p$Y, p$W, p$obs)
+  if (grid_auto) grid <- if (is.null(lambda)) trop_grid_scaled(p$Y, p$W) else trop_grid()
   design <- trop_design(p$W, p$obs)
   cov <- NULL
   Xa <- as_covariate_array(X, p$Y, p$obs)
@@ -95,12 +124,14 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
             call. = FALSE)
   }
   if (se == "bootstrap") {
-    check_count(n_boot, "n_boot")
+    if (is.null(boot_rows)) check_count(n_boot, "n_boot")
     if (design$n_treated_units < 5L) {
       warning("The bootstrap of Algorithm 3 is correct only with many treated units. This panel has only ",
               design$n_treated_units, " treated unit(s).", call. = FALSE)
     }
   }
+  if (!is.null(strata)) strata <- check_strata(strata, N)
+  if (se == "bootstrap" && !is.null(boot_rows)) boot_rows <- check_boot_rows(boot_rows, N)
 
   rng <- seed_scope(seed)
   on.exit(rng$restore(), add = TRUE)
@@ -155,19 +186,20 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
   }
   rows <- NULL
   if (se == "bootstrap") {
-    tr <- design$treated
-    rows <- matrix(0L, n_boot, N)
-    for (b in seq_len(n_boot)) {
-      a <- if (resample == "stratified") tr[sample.int(length(tr), length(tr), replace = TRUE)] else tr
-      rows[b, ] <- c(a, never[sample.int(length(never), length(never), replace = TRUE)])
+    if (is.null(boot_rows)) {
+      rows <- boot_rows_matrix(design$treated, never, as.integer(n_boot), resample, strata)
+    } else {
+      rows <- boot_rows
+      resample <- "custom"
     }
-    rows <- rows - 1L
   }
   list(p = p, design = design, never = never, method = method, lambda = lambda, grid = grid,
        max_cycles = as.integer(max_cycles), cells = cells, Yc = Yc, oc = oc, Wz = Wz, Xc = Xc,
        X = Xp, Xb = Xb, resid = resid, cov = cov,
-       sets = sets, set_size = size, init = init, se = se, rows = rows, resample = resample,
+       sets = sets, set_size = size, init = init, se = se,
+       rows = if (is.null(rows)) NULL else rows - 1L, rows1 = rows, resample = resample,
        conf_level = conf_level, ci = ci, control = control, ctrl = unclass(control),
+       n_excluded = n_excluded, demean = demean, stratified = !is.null(strata),
        dimnames = dimnames(Y))
 }
 
@@ -203,6 +235,13 @@ trop_run <- function(plan) {
     }
     kernel <- kernel + res$kernel_seconds
     lambda <- res$lambda
+    edge <- grid_boundary(lambda, plan$grid)
+    cv$boundary <- edge
+    if (length(edge) > 0L) {
+      warning("The cross-validation chose the ", paste(edge, collapse = " and the "),
+              " of the grid. A value outside of the grid can fit better. Use a wider grid or `grid = \"auto\"`.",
+              call. = FALSE)
+    }
   }
 
   if (plan$method == "local") {
@@ -258,7 +297,8 @@ trop_run <- function(plan) {
               " bootstrap draws failed. The standard error and the interval do not use these draws.",
               call. = FALSE)
     }
-    boot <- list(draws = draws, n_failed = length(draws) - length(ok), resample = plan$resample)
+    boot <- list(draws = draws, n_failed = length(draws) - length(ok), resample = plan$resample,
+                 strata = plan$stratified, rows = plan$rows1)
   }
 
   structure(
@@ -267,9 +307,12 @@ trop_run <- function(plan) {
       conf.level = plan$conf_level, ci_type = plan$ci, lambda = lambda, method = plan$method,
       design = design$type,
       n_units = nrow(p$Y), n_periods = ncol(p$Y), n_treated_units = design$n_treated_units,
-      n_treated_cells = design$n_treated_cells, n_skipped = n_skipped,
+      n_treated_cells = design$n_treated_cells, n_excluded_cells = plan$n_excluded,
+      n_skipped = n_skipped,
       n_nonconverged = n_nonconv, tau = tau, cv = cv, boot = boot, covariates = covariates,
-      control = plan$control,
+      control = plan$control, demean = plan$demean,
+      panel = list(Y = p$Yb, W = p$W, X = plan$Xb, resid = plan$resid),
+      package = package_info(),
       timing = list(kernel_seconds = kernel,
                     total_seconds = as.double(difftime(Sys.time(), t0, units = "secs"))),
       units = plan$dimnames[[1L]], times = plan$dimnames[[2L]], call = NULL

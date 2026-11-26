@@ -1,0 +1,192 @@
+---
+title: "Effects by group and many tests"
+description: >
+  How to get the effect for each event time, how to keep some treated cells
+  out of the estimate, and how to adjust p-values for many tests.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE)
+source("_setup.R")
+```
+
+::: {.key-points}
+Key points
+
+- `trop_effects()` gives the mean effect of a group of treated cells. A group
+  can be all cells with the same event time. The event time is the number of
+  periods since the treatment started.
+- The band of `trop_effects()` covers all groups together. An interval covers
+  one group only.
+- The argument `target` keeps some treated cells out of the estimate. Use it
+  when the treatment is not complete in those cells.
+- Use `trop_boot_rows()` to draw the same units for all tests.
+  Use `trop_stepdown()` to adjust the p-values.
+- This article uses practice data. The data have a known effect.
+:::
+
+## A practice panel
+
+The panel has 40 units and 20 periods. Twelve units get the treatment. The
+treated units do not all start treatment in the same period. This is a staggered
+design. The true effect is 1 in each treated cell.
+
+```{r data}
+library(fasttrop)
+panel <- trop_simulate(n_units = 40, n_periods = 20, n_treated = 12, n_post = 6,
+                       design = "staggered", seed = 1)
+head(panel)
+```
+
+The paper proves the triple robustness property only for a block design.
+Thus, `trop()` gives a warning message for a staggered design. This article
+hides that message. Read the article [What TROP can and cannot
+do](limits.html) before you use a staggered design.
+
+To keep the build fast, the fit uses fixed tuning parameters. The bootstrap
+has 100 draws. A real analysis must use more draws.
+
+```{r fit, warning = FALSE}
+lambda <- c(time = 0.2, unit = 0.5, nn = 0.5)
+fit <- trop(panel, outcome = "y", treatment = "d", unit = "unit", time = "time",
+            lambda = lambda, n_boot = 100, seed = 1)
+fit
+```
+
+## The effect for each event time
+
+The function `trop_effects()` starts from a fit. The argument `by` selects the
+groups. The choices are `"event_time"`, `"cohort"`, `"time"`, `"unit"`, and
+`"overall"`. You can also give a matrix with one group number for each cell.
+
+```{r effects}
+ev <- trop_effects(fit, by = "event_time")
+ev
+```
+
+The estimate of a group is the mean of the effects of its cells. The column
+`n_cells` gives the number of cells. The function uses the bootstrap draws of
+the fit. Thus, the draws of all groups come from the same resamples of units.
+This is necessary for the band.
+
+Compare `n_cells` across the rows. Units that
+start treatment late can contribute to the first event time but not the last.
+
+```{r effects-fig, echo = FALSE, fig.asp = 0.55, fig.cap = "The effect for each event time of the practice panel. The points are the estimates, the thick bars are the 95% intervals for one event time, and the light band covers all event times together. The dashed line is the true effect of 1.", fig.alt = "A chart with the event time on the horizontal axis and the estimated effect on the vertical axis. Teal points show the estimate for each event time. Thick teal bars show the interval for each point. A wider light teal band shows the simultaneous band. A dashed grey line marks the true effect of 1."}
+df <- as.data.frame(ev)
+ggplot(df, aes(event_time, estimate)) +
+  geom_hline(yintercept = 1, colour = ft_col[["muted"]], linewidth = 0.6, linetype = "22") +
+  geom_ribbon(aes(ymin = band.low, ymax = band.high), fill = ft_col[["teal_light"]], alpha = 0.45) +
+  geom_linerange(aes(ymin = conf.low, ymax = conf.high), colour = ft_col[["teal"]], linewidth = 1.3) +
+  geom_point(colour = ft_col[["teal_dark"]], size = 3) +
+  scale_x_continuous(breaks = df$event_time) +
+  labs(x = "Event time (periods since the start of the treatment)", y = "Effect")
+```
+
+Use the band to read the pattern of effects over time. If the band excludes 0
+at every event time, then you have evidence for an effect at every event
+time. An interval for one event time gives no such evidence. If you compare
+many intervals, one of them can exclude 0 by chance.
+
+The band is a sup-t band. Its critical value is a quantile of the largest
+absolute standardized draw over the groups. With few draws, this quantile can
+change substantially with the seed. With one group, the band columns are `NA`.
+
+## Keep cells out of the estimate
+
+Sometimes the treatment is not complete in some treated cells. For example, a
+rollout can start in a period but reach all users only some periods later. The
+argument `target` keeps such cells out of the estimate.
+
+Give `target` as a column of the data with the values `TRUE` and `FALSE`. A
+treated cell with `FALSE` stays in the panel, but the fit does not use its
+outcome. Untreated cells can still supply data for the fit. In the
+next fit, the cells in the last 2 periods are outside of the target.
+
+```{r target, warning = FALSE}
+panel$in_target <- panel$time <= 18
+fit_t <- trop(panel, outcome = "y", treatment = "d", unit = "unit", time = "time",
+              lambda = lambda, target = "in_target", se = "none")
+c(all_cells = coef(fit), target_only = coef(fit_t))
+c(treated_cells = fit_t$n_treated_cells, outside_target = fit_t$n_excluded_cells)
+```
+
+The two estimates can be different. The second estimate does not use the
+treated outcomes in the last 2 periods. The result `n_excluded_cells` counts the treated
+cells that are not in the estimate. The printed fit shows the same number.
+
+Choose the target before you examine the outcomes. Record which treated
+cells it includes and why they answer your question.
+
+## Adjust the p-values of many tests
+
+A test for one event time is not enough when you test many event times or
+many outcomes. With many tests, one of them can be significant by chance.
+`trop_stepdown()` uses the method of Romano and Wolf (2005). It controls the
+probability of one or more false rejections.
+
+The method must have the joint bootstrap distribution of all estimates. Thus, all
+estimates must use the same resampled units. To do this, make the rows once
+with `trop_boot_rows()`. Use the same units in the same order for each fit.
+Then give the rows to each fit.
+
+The example has two outcomes. The first outcome is `y`. Its true effect is 1.
+The second outcome is `y0`, the outcome without the treatment. Its true effect
+is 0.
+
+```{r stepdown, warning = FALSE}
+W <- tapply(panel$d, list(panel$unit, panel$time), sum)
+rows <- trop_boot_rows(W, n_boot = 100, seed = 2)
+
+fit_y <- trop(panel, "y", "d", "unit", "time", lambda = lambda, boot_rows = rows)
+fit_0 <- trop(panel, "y0", "d", "unit", "time", lambda = lambda, boot_rows = rows)
+
+res <- trop_stepdown(list(effect = fit_y, no_effect = fit_0))
+res
+```
+
+The column `p_raw` is the p-value of one test. The column `p_adj` is the
+adjusted p-value. An adjusted p-value is never smaller than the raw p-value.
+You can also give `trop_effects()` objects, for example to test each event
+time. The objects must have the same bootstrap rows. If they do not, the
+function gives an error.
+
+```{r stepdown-events}
+ev_0 <- trop_effects(fit_0, by = "event_time")
+trop_stepdown(ev_0)
+```
+
+With `strata`, `trop_boot_rows()` resamples the units inside groups that you
+define, for example the waves of a rollout. Each draw keeps the number of
+treated units and the number of untreated units in each group. The argument
+`resample = "controls"` keeps the treated units fixed and resamples only the
+untreated units.
+
+## Record the version
+
+Keep `fit$package` and `fit$lambda` with your results. For a fit that uses
+cross-validation, see [Choose a tuning grid](tuning-grid.html).
+
+```{r package}
+fit$package
+```
+
+::: {.limit-box}
+Limits
+
+- As in `trop()`, the bootstrap keeps the tuning parameters fixed. It does not
+  include the variation that comes from the selection of the tuning
+  parameters.
+- `trop_effects()` runs the draws one after another in R. With many draws and
+  many cells, it can be slower than the bootstrap of `trop()`.
+- The sup-t band and the stepdown p-values are accurate only with many
+  draws. Use at least several hundred.
+- `trop_effects()` is for the local method. The global method has no
+  effects for each cell.
+- `target` is for the local method.
+:::
+
+## References
+
+Romano, J. P., and Wolf, M. (2005). Stepwise multiple testing as formalized
+data snooping. *Econometrica*, 73(4), 1237-1282.

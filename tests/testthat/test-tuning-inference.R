@@ -44,8 +44,8 @@ test_that("placebo CV is the RMSE of placebo ATEs on untreated units", {
 test_that("the local search reports the score of the chosen grid point", {
   p <- small_panel(seed = 19, n_units = 10, n_periods = 8, n_post = 2)
   g <- trop_grid(time = c(0, 0.5), unit = c(0, 1), nn = c(0.5, Inf))
-  fit <- trop_matrix(p$Y, p$W, grid = g, cv_cells = 20, se = "none", seed = 2,
-                     control = small_control())
+  fit <- suppressWarnings(trop_matrix(p$Y, p$W, grid = g, cv_cells = 20, se = "none", seed = 2,
+                                      control = small_control()))
   tr <- fit$cv$trace
   key <- paste(tr$time, tr$unit, tr$nn)
   b <- fit$lambda
@@ -58,8 +58,8 @@ test_that("the local search reports the score of the chosen grid point", {
 test_that("the global search reaches a fixed point of the coordinate cycle", {
   p <- small_panel(seed = 21, n_units = 16, n_periods = 9, n_post = 3)
   g <- trop_grid(time = c(0, 0.5), unit = c(0, 1), nn = c(0.5, Inf))
-  fit <- trop_matrix(p$Y, p$W, method = "global", grid = g, n_placebo = 20, se = "none",
-                     seed = 4, control = small_control())
+  fit <- suppressWarnings(trop_matrix(p$Y, p$W, method = "global", grid = g, n_placebo = 20,
+                                      se = "none", seed = 4, control = small_control()))
   expect_true(fit$cv$fixed_point)
   expect_equal(fit$cv$n_sets, 20L)
   tr <- fit$cv$trace

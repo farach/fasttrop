@@ -25,7 +25,11 @@ trop(
   control = trop_control(),
   seed = NULL,
   covariates = NULL,
-  covariate_method = c("joint", "residualize")
+  covariate_method = c("joint", "residualize"),
+  target = NULL,
+  strata = NULL,
+  boot_rows = NULL,
+  demean = FALSE
 )
 }
 \arguments{
@@ -41,7 +45,9 @@ must be 0 or 1. Outcomes can be \code{NA}. The fits do not use these cells.}
 with the names \code{time}, \code{unit}, and \code{nn}. If \code{lambda} is \code{NULL},
 cross-validation selects the tuning parameters from \code{grid}.}
 
-\item{grid}{The tuning grids from \code{\link[=trop_grid]{trop_grid()}}.}
+\item{grid}{The tuning grids from \code{\link[=trop_grid]{trop_grid()}}, or \code{"auto"}. With \code{"auto"},
+the function scales the default grid to the data. Refer to the section
+Tuning grid.}
 
 \item{cv_cells}{For the local method, the number of untreated cells in a
 random sample for the leave-one-out criterion. If \code{cv_cells} is \code{NULL},
@@ -79,6 +85,23 @@ section Covariates.}
 
 \item{covariate_method}{Use \code{"joint"} or \code{"residualize"}. Refer to the
 section Covariates.}
+
+\item{target}{An optional name of a column with \code{TRUE} and \code{FALSE} (or 1 and
+0) for each row of \code{data}. A treated cell with \code{TRUE} is in the estimate.
+Refer to the section Target cells. \code{\link[=trop_matrix]{trop_matrix()}} takes a logical or 0/1
+matrix with the dimensions of \code{W}.}
+
+\item{strata}{An optional name of a column with the stratum of each unit. The
+value must be the same for all rows of a unit. \code{\link[=trop_matrix]{trop_matrix()}} takes a
+vector with one value for each unit. Refer to the section Inference.}
+
+\item{boot_rows}{An optional matrix of bootstrap draws from
+\code{\link[=trop_boot_rows]{trop_boot_rows()}}. If you use it, \code{n_boot} and \code{resample} do not apply,
+and you cannot use \code{strata}.}
+
+\item{demean}{Logical. If \code{TRUE}, the function subtracts the mean of the
+untreated outcomes of each unit before it fits the model. Refer to the
+section Tuning grid.}
 }
 \value{
 An object of class \code{trop}. It is a list with these elements and with
@@ -90,11 +113,19 @@ and the confidence interval.
 \item \code{tau}: a matrix with the effect for each treated cell.
 \item \code{lambda}: the tuning parameters.
 \item \code{cv}: the results of the cross-validation, or \code{NULL} for fixed tuning
-parameters.
-\item \code{boot}: the bootstrap draws.
+parameters. The element \code{cv$boundary} names the tuning values that are
+at the edge of the grid.
+\item \code{boot}: the bootstrap draws in \code{draws}, the number of failed draws in
+\code{n_failed}, the kind of draws in \code{resample}, and the draw rows in
+\code{rows}.
+\item \code{n_excluded_cells}: the number of treated cells that are not in the
+target.
 \item \code{covariates}: \code{NULL} without covariates. Otherwise, a list with the
 coefficients \code{coef}, the \code{method}, and the names of the covariates that
 the function \code{used} and \code{dropped}.
+\item \code{panel}: the matrices of the fit. \code{\link[=trop_effects]{trop_effects()}} uses them. They make
+the object larger.
+\item \code{package}: the version of fasttrop, and its commit if it is known.
 \item \code{timing}: the time in the C code and the total time, in seconds.
 }
 }
@@ -155,6 +186,17 @@ the bootstrap draws treated and untreated units separately. With
 \code{resample = "controls"}, the treated units do not change. The standard error
 is the standard deviation of the draws.
 
+With \code{strata}, the bootstrap draws the units of each stratum separately.
+Each draw keeps the number of treated units and of untreated units in each
+stratum. Use this when the units are in groups, for example a rollout in
+waves.
+
+With \code{boot_rows}, you give the draws. Use \code{\link[=trop_boot_rows]{trop_boot_rows()}} to make them.
+If you give the same draws to two or more fits, the fits have a joint
+bootstrap distribution. Then \code{\link[=trop_stepdown]{trop_stepdown()}} can adjust the p-values of
+the fits. The draws and the panel are in the result, so \code{\link[=trop_effects]{trop_effects()}} can
+also calculate the effects of groups of cells.
+
 The default interval is the normal interval with this standard error, as in
 the bootstrap variance of the paper. With \code{ci = "percentile"}, the interval
 comes from quantiles of the draws, as in the Python package from the
@@ -162,6 +204,41 @@ authors. A percentile interval is less accurate with a small number of
 draws. The paper also says that the bootstrap is correct only with many
 treated units. Thus, the function gives a warning message for a bootstrap
 with fewer than 5 treated units.
+}
+
+\section{Target cells}{
+
+By default, the estimate is the mean of the effects of all treated cells.
+With \code{target}, the estimate uses only some of the treated cells. For
+example, use \code{target} for the first 3 periods after the start of the
+treatment. The function does not use the outcome of a treated cell outside
+of the target, because the treatment can change it. The outcome is not in the
+fit of any other cell, and the cell is not in the estimate.
+
+The result has the same value as a fit with \code{NA} in the outcome of these
+cells. The element \code{n_excluded_cells} of the result has the number of these
+cells.
+
+The target is only for the local method, because the global method fits all
+treated cells together. Use \code{\link[=trop_effects]{trop_effects()}} to calculate the effects of
+many groups of cells in one fit.
+}
+
+\section{Tuning grid}{
+
+The default grid of \code{\link[=trop_grid]{trop_grid()}} fits an outcome with a standard deviation
+of about 1. If the outcome has other units, a better value can be outside
+of the grid. Then cross-validation chooses a value at the edge of the grid.
+The function gives a warning message when this happens for a finite value of
+\code{time}, \code{unit}, or \code{nn}. The result has the edge values in \code{cv$boundary}.
+
+With \code{grid = "auto"}, the function scales the default grid to the data with
+\code{\link[=trop_grid_scaled]{trop_grid_scaled()}}. With \code{demean = TRUE}, the function subtracts the mean
+of the untreated outcomes of each unit before it calculates the distances
+between units. The unit effect absorbs a constant of a unit. Thus, with
+\code{unit = 0} the effects do not change. With a larger \code{unit} weight, the
+weights of the units are different. They compare the shape of the outcome
+histories and not the level.
 }
 
 \section{Limits of the triple robustness result}{

@@ -23,6 +23,9 @@ print.trop <- function(x, digits = 4L, ...) {
   cat("Triply Robust Panel (TROP) estimate\n")
   cat(sprintf("  Method: %s | Design: %s | Units: %d | Periods: %d | Treated cells: %d\n",
               x$method, x$design, x$n_units, x$n_periods, x$n_treated_cells))
+  if (isTRUE(x$n_excluded_cells > 0L)) {
+    cat(sprintf("  Cells outside of `target`: %d (not in the estimate)\n", x$n_excluded_cells))
+  }
   cat(sprintf("  ATT: %s", format(signif(x$estimate, digits))))
   if (is.finite(x$std.error)) {
     cat(sprintf("  (SE %s, %g%% CI %s to %s)", format(signif(x$std.error, digits)),
@@ -69,13 +72,18 @@ print.summary.trop <- function(x, digits = 4L, ...) {
     cat(sprintf("  Covariates not used: %s\n", paste(cvx$dropped, collapse = ", ")))
   }
   if (!is.null(x$boot)) {
+    label <- if (isTRUE(x$boot$strata)) paste(x$boot$resample, "within strata") else x$boot$resample
     cat(sprintf("  Bootstrap: %d draws (%s), %d failed, %s interval\n", length(x$boot$draws),
-                x$boot$resample, x$boot$n_failed, x$ci_type))
+                label, x$boot$n_failed, x$ci_type))
   }
   cat(sprintf("  Treated units: %d | Skipped cells: %d | Non-converged fits: %d\n",
               x$n_treated_units, x$n_skipped, x$n_nonconverged))
   cat(sprintf("  Time: %.3f s in total, %.3f s in the C code (%d threads)\n",
               x$timing$total_seconds, x$timing$kernel_seconds, x$control$threads))
+  if (!is.null(x$package) && !is.na(x$package$version)) {
+    cat(sprintf("  fasttrop %s%s\n", x$package$version,
+                if (is.na(x$package$sha)) "" else paste0(" (commit ", substr(x$package$sha, 1L, 7L), ")")))
+  }
   if (x$design != "block") {
     cat("  Note: Theorem 5.1 (triple robustness) has a proof only for a block design.\n")
   }

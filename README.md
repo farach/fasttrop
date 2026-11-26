@@ -142,6 +142,23 @@ cells calculates \(\phi\) first. The global method with covariates is an
 extension of fasttrop. The article "Use covariates" on the website gives the
 details.
 
+### Effects by group and many tests
+
+For a real study, you often need the effect of each event time, or of each
+cohort. The function `trop_effects()` gives these effects with a band that
+covers all groups together. The function `trop_stepdown()` adjusts the
+p-values of many tests. The argument `target` keeps some treated cells out of
+the estimate.
+
+```r
+fit <- trop(panel, outcome = "y", treatment = "d", unit = "unit",
+            time = "time", n_boot = 500)
+trop_effects(fit, by = "event_time")
+```
+
+The article "Effects by group and many tests" on the website gives an
+example with practice data.
+
 ## Validation
 
 We compared fasttrop with two reference implementations at fixed commits. The
@@ -236,13 +253,15 @@ scripts and the saved results of the benchmarks.
 
 ## Limits
 
-These limits apply to version 0.2.0:
+These limits apply to version 0.3.0:
 
 - Theorem 5.1 of the paper (triple robustness) has a proof only for a block
   design. For other designs, fasttrop gives a warning message.
 - The bootstrap is correct only with many treated units. fasttrop gives a
   warning message for a bootstrap with fewer than five treated units.
 - The global method works only for a block design.
+- `trop_effects()` and `target` work only with the local method. The bootstrap
+  of `trop_effects()` keeps the tuning parameters fixed.
 - With covariates, the weights do not remove a bias from a wrong covariate
   coefficient. The paper does not give one procedure to calculate the
   coefficients, and the global method with covariates is an extension of
