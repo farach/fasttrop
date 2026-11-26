@@ -1,6 +1,85 @@
 # Changelog
 
-## fasttrop (development version)
+## fasttrop 0.3.0
+
+This version adds tools for real studies with many treated cells, many
+groups, and many tests. The default of each new argument gives the same
+result as version 0.2.0.
+
+### Effects by group
+
+- The new function
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  gives the mean effect of groups of treated cells. The argument `by`
+  selects the groups: `"event_time"`, `"cohort"`, `"time"`, `"unit"`,
+  `"overall"`, or a matrix with one group number for each cell. It
+  returns the estimates, the standard errors, the intervals, and a
+  simultaneous (sup-t) band for all groups.
+- The new methods [`print()`](https://rdrr.io/r/base/print.html) and
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) work
+  for the result of
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md).
+- [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  uses the bootstrap rows of the fit. Thus, the draws of all groups come
+  from the same resamples. For the group `"overall"`, the draws are the
+  same as the draws of the fit.
+
+### Many tests
+
+- The new function
+  [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
+  makes the bootstrap rows once. Give the rows to the argument
+  `boot_rows` of
+  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md) and
+  [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  to use the same resamples for many fits.
+- The new function
+  [`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
+  adjusts p-values with the stepdown method of Romano and Wolf (2005).
+  It accepts fits or the results of
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md).
+- The new argument `strata` resamples the units inside groups. The new
+  argument `resample = "controls"` of
+  [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
+  resamples only the untreated units.
+
+### Target cells
+
+- The new argument `target` of
+  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md) and
+  [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  keeps treated cells out of the estimate. A cell outside of the target
+  stays in the panel, but the estimate does not use it. The fit counts
+  these cells in `n_excluded_cells`. A target works with the local
+  method only.
+
+### Tuning
+
+- The new function
+  [`trop_grid_scaled()`](https://farach.github.io/fasttrop/reference/trop_grid_scaled.md)
+  puts the tuning grid on the scale of the outcome. The setting
+  `grid = "auto"` in
+  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md) and
+  [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  uses it with the default grid.
+- Cross-validation now gives a warning message when it chooses a value
+  at the edge of the grid. The result `cv$boundary` names these values.
+- The new argument `demean = TRUE` subtracts the mean of each unit
+  before the fit.
+
+### Records
+
+- A fit now stores the version of fasttrop, and the commit for an
+  installation from GitHub, in `fit$package`.
+  [`summary()`](https://rdrr.io/r/base/summary.html) prints them.
+- A fit now stores the panel in `fit$panel` and the bootstrap rows in
+  `fit$boot$rows`. A fit from an older version does not have them, so
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  cannot use such a fit.
+- [`print()`](https://rdrr.io/r/base/print.html) shows the number of
+  treated cells that are outside of the target.
+
+### Fixes
 
 - Time weights now use direct exponential values, with zero after
   underflow. This corrects the identifiability test for distant cells in

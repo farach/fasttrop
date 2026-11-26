@@ -29,6 +29,18 @@ Read the results of a fit and know the limits of the method.
   How fasttrop adds covariates to TROP, the two procedures for the
   coefficients, and how we checked them.
 
+- [Effects by group and many
+  tests](https://farach.github.io/fasttrop/articles/event-studies.md):
+
+  How to get the effect for each event time, how to keep some treated
+  cells out of the estimate, and how to adjust p-values for many tests.
+
+- [Choose a tuning
+  grid](https://farach.github.io/fasttrop/articles/tuning-grid.md):
+
+  Set the grid for the units of the outcome. Read a grid warning and
+  decide which values to try next.
+
 - [What TROP can and cannot
   do](https://farach.github.io/fasttrop/articles/limits.md):
 

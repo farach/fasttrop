@@ -35,7 +35,8 @@ summary(fit)
 #>   Tuning: loocv, score 99.73, 28 grid evaluations
 #>   Bootstrap: 200 draws (stratified), 0 failed, normal interval
 #>   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0
-#>   Time: 27.997 s in total, 27.985 s in the C code (4 threads)
+#>   Time: 22.164 s in total, 22.148 s in the C code (4 threads)
+#>   fasttrop 0.3.0
 ```
 
 The first lines of the output give the method, the design, and the size

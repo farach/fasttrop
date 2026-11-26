@@ -24,6 +24,19 @@ Show a fit and get its parts.
 
   Methods for `trop` objects
 
+## Group effects and many tests
+
+Get the effect of groups of cells and adjust the p-values of many tests.
+
+- [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  [`print(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  [`as.data.frame(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  : Effects by event time, cohort, period, or unit
+- [`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
+  : Romano-Wolf stepdown p-values
+- [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
+  : Make bootstrap rows
+
 ## Settings
 
 Set the solver options, the tuning grids, and the number of threads.
@@ -32,6 +45,8 @@ Set the solver options, the tuning grids, and the number of threads.
   : Solver options
 - [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md)
   : Tuning grids
+- [`trop_grid_scaled()`](https://farach.github.io/fasttrop/reference/trop_grid_scaled.md)
+  : Scale the tuning grid to the data
 - [`trop_threads()`](https://farach.github.io/fasttrop/reference/trop_threads.md)
   : Default number of threads
 

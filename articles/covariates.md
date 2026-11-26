@@ -83,8 +83,14 @@ panel$y <- panel$y + panel$x
 
 without <- trop(panel, "y", "d", "unit", "time", method = "global",
                 se = "none", seed = 1)
+#> Warning: The cross-validation chose the smallest value of `nn` (0.01) of the
+#> grid. A value outside of the grid can fit better. Use a wider grid or `grid =
+#> "auto"`.
 with_x <- trop(panel, "y", "d", "unit", "time", method = "global",
                se = "none", seed = 1, covariates = "x")
+#> Warning: The cross-validation chose the smallest value of `nn` (0.01) of the
+#> grid. A value outside of the grid can fit better. Use a wider grid or `grid =
+#> "auto"`.
 c(without = without$estimate, with_covariate = with_x$estimate)
 #>        without with_covariate 
 #>       2.675201       1.202991

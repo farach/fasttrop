@@ -3,6 +3,7 @@
 <url><loc>https://farach.github.io/fasttrop/LICENSE-text.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/LICENSE.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/covariates.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/articles/event-studies.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/fasttrop.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/glossary.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/index.html</loc></url>
@@ -10,6 +11,7 @@
 <url><loc>https://farach.github.io/fasttrop/articles/read-your-results.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/speed.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/the-big-idea.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/articles/tuning-grid.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/validation.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/authors.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/index.html</loc></url>
@@ -18,10 +20,14 @@
 <url><loc>https://farach.github.io/fasttrop/reference/index.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop-methods.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_boot_rows.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_control.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_effects.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_grid.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_grid_scaled.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_matrix.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_simulate.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_stepdown.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_threads.html</loc></url>
 </urlset>
 

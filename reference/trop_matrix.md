@@ -25,7 +25,11 @@ trop_matrix(
   control = trop_control(),
   seed = NULL,
   X = NULL,
-  covariate_method = c("joint", "residualize")
+  covariate_method = c("joint", "residualize"),
+  target = NULL,
+  strata = NULL,
+  boot_rows = NULL,
+  demean = FALSE
 )
 ```
 
@@ -54,7 +58,9 @@ trop_matrix(
 - grid:
 
   The tuning grids from
-  [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md).
+  [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md),
+  or `"auto"`. With `"auto"`, the function scales the default grid to
+  the data. Refer to the section Tuning grid.
 
 - cv_cells:
 
@@ -118,6 +124,32 @@ trop_matrix(
 - covariate_method:
 
   Use `"joint"` or `"residualize"`. Refer to the section Covariates.
+
+- target:
+
+  An optional name of a column with `TRUE` and `FALSE` (or 1 and 0) for
+  each row of `data`. A treated cell with `TRUE` is in the estimate.
+  Refer to the section Target cells. `trop_matrix()` takes a logical or
+  0/1 matrix with the dimensions of `W`.
+
+- strata:
+
+  An optional name of a column with the stratum of each unit. The value
+  must be the same for all rows of a unit. `trop_matrix()` takes a
+  vector with one value for each unit. Refer to the section Inference.
+
+- boot_rows:
+
+  An optional matrix of bootstrap draws from
+  [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md).
+  If you use it, `n_boot` and `resample` do not apply, and you cannot
+  use `strata`.
+
+- demean:
+
+  Logical. If `TRUE`, the function subtracts the mean of the untreated
+  outcomes of each unit before it fits the model. Refer to the section
+  Tuning grid.
 
 ## Value
 

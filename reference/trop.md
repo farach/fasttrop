@@ -33,7 +33,11 @@ trop(
   control = trop_control(),
   seed = NULL,
   covariates = NULL,
-  covariate_method = c("joint", "residualize")
+  covariate_method = c("joint", "residualize"),
+  target = NULL,
+  strata = NULL,
+  boot_rows = NULL,
+  demean = FALSE
 )
 ```
 
@@ -61,7 +65,9 @@ trop(
 - grid:
 
   The tuning grids from
-  [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md).
+  [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md),
+  or `"auto"`. With `"auto"`, the function scales the default grid to
+  the data. Refer to the section Tuning grid.
 
 - cv_cells:
 
@@ -123,6 +129,35 @@ trop(
 
   Use `"joint"` or `"residualize"`. Refer to the section Covariates.
 
+- target:
+
+  An optional name of a column with `TRUE` and `FALSE` (or 1 and 0) for
+  each row of `data`. A treated cell with `TRUE` is in the estimate.
+  Refer to the section Target cells.
+  [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  takes a logical or 0/1 matrix with the dimensions of `W`.
+
+- strata:
+
+  An optional name of a column with the stratum of each unit. The value
+  must be the same for all rows of a unit.
+  [`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+  takes a vector with one value for each unit. Refer to the section
+  Inference.
+
+- boot_rows:
+
+  An optional matrix of bootstrap draws from
+  [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md).
+  If you use it, `n_boot` and `resample` do not apply, and you cannot
+  use `strata`.
+
+- demean:
+
+  Logical. If `TRUE`, the function subtracts the mean of the untreated
+  outcomes of each unit before it fits the model. Refer to the section
+  Tuning grid.
+
 ## Value
 
 An object of class `trop`. It is a list with these elements and with
@@ -138,13 +173,25 @@ other elements:
 - `lambda`: the tuning parameters.
 
 - `cv`: the results of the cross-validation, or `NULL` for fixed tuning
-  parameters.
+  parameters. The element `cv$boundary` names the tuning values that are
+  at the edge of the grid.
 
-- `boot`: the bootstrap draws.
+- `boot`: the bootstrap draws in `draws`, the number of failed draws in
+  `n_failed`, the kind of draws in `resample`, and the draw rows in
+  `rows`.
+
+- `n_excluded_cells`: the number of treated cells that are not in the
+  target.
 
 - `covariates`: `NULL` without covariates. Otherwise, a list with the
   coefficients `coef`, the `method`, and the names of the covariates
   that the function `used` and `dropped`.
+
+- `panel`: the matrices of the fit.
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  uses them. They make the object larger.
+
+- `package`: the version of fasttrop, and its commit if it is known.
 
 - `timing`: the time in the C code and the total time, in seconds.
 
@@ -193,6 +240,21 @@ The bootstrap keeps the tuning parameters fixed. With
 units separately. With `resample = "controls"`, the treated units do not
 change. The standard error is the standard deviation of the draws.
 
+With `strata`, the bootstrap draws the units of each stratum separately.
+Each draw keeps the number of treated units and of untreated units in
+each stratum. Use this when the units are in groups, for example a
+rollout in waves.
+
+With `boot_rows`, you give the draws. Use
+[`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
+to make them. If you give the same draws to two or more fits, the fits
+have a joint bootstrap distribution. Then
+[`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
+can adjust the p-values of the fits. The draws and the panel are in the
+result, so
+[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+can also calculate the effects of groups of cells.
+
 The default interval is the normal interval with this standard error, as
 in the bootstrap variance of the paper. With `ci = "percentile"`, the
 interval comes from quantiles of the draws, as in the Python package
@@ -200,6 +262,45 @@ from the authors. A percentile interval is less accurate with a small
 number of draws. The paper also says that the bootstrap is correct only
 with many treated units. Thus, the function gives a warning message for
 a bootstrap with fewer than 5 treated units.
+
+## Target cells
+
+By default, the estimate is the mean of the effects of all treated
+cells. With `target`, the estimate uses only some of the treated cells.
+For example, use `target` for the first 3 periods after the start of the
+treatment. The function does not use the outcome of a treated cell
+outside of the target, because the treatment can change it. The outcome
+is not in the fit of any other cell, and the cell is not in the
+estimate.
+
+The result has the same value as a fit with `NA` in the outcome of these
+cells. The element `n_excluded_cells` of the result has the number of
+these cells.
+
+The target is only for the local method, because the global method fits
+all treated cells together. Use
+[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+to calculate the effects of many groups of cells in one fit.
+
+## Tuning grid
+
+The default grid of
+[`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md)
+fits an outcome with a standard deviation of about 1. If the outcome has
+other units, a better value can be outside of the grid. Then
+cross-validation chooses a value at the edge of the grid. The function
+gives a warning message when this happens for a finite value of `time`,
+`unit`, or `nn`. The result has the edge values in `cv$boundary`.
+
+With `grid = "auto"`, the function scales the default grid to the data
+with
+[`trop_grid_scaled()`](https://farach.github.io/fasttrop/reference/trop_grid_scaled.md).
+With `demean = TRUE`, the function subtracts the mean of the untreated
+outcomes of each unit before it calculates the distances between units.
+The unit effect absorbs a constant of a unit. Thus, with `unit = 0` the
+effects do not change. With a larger `unit` weight, the weights of the
+units are different. They compare the shape of the outcome histories and
+not the level.
 
 ## Limits of the triple robustness result
 

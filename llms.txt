@@ -104,6 +104,17 @@ The article [Get
 started](https://farach.github.io/fasttrop/articles/fasttrop.md)
 explains each step and the output.
 
+## After your first fit
+
+- To see how the effect changes after treatment starts, use [Effects by
+  group and many
+  tests](https://farach.github.io/fasttrop/articles/event-studies.md).
+  The example shows how to read the band for all event times.
+- If the fit reports a value at the edge of the grid, use [Choose a
+  tuning
+  grid](https://farach.github.io/fasttrop/articles/tuning-grid.md). It
+  shows how to change the grid when you change the units of the outcome.
+
 ## Who made what
 
 The TROP method is from Susan Athey, Guido Imbens, Zhaonan Qu, and
@@ -139,6 +150,19 @@ Show a fit and get its parts.
 
   Methods for `trop` objects
 
+## Group effects and many tests
+
+Get the effect of groups of cells and adjust the p-values of many tests.
+
+- [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  [`print(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  [`as.data.frame(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  : Effects by event time, cohort, period, or unit
+- [`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
+  : Romano-Wolf stepdown p-values
+- [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
+  : Make bootstrap rows
+
 ## Settings
 
 Set the solver options, the tuning grids, and the number of threads.
@@ -147,6 +171,8 @@ Set the solver options, the tuning grids, and the number of threads.
   : Solver options
 - [`trop_grid()`](https://farach.github.io/fasttrop/reference/trop_grid.md)
   : Tuning grids
+- [`trop_grid_scaled()`](https://farach.github.io/fasttrop/reference/trop_grid_scaled.md)
+  : Scale the tuning grid to the data
 - [`trop_threads()`](https://farach.github.io/fasttrop/reference/trop_threads.md)
   : Default number of threads
 
@@ -187,6 +213,18 @@ Read the results of a fit and know the limits of the method.
 
   How fasttrop adds covariates to TROP, the two procedures for the
   coefficients, and how we checked them.
+
+- [Effects by group and many
+  tests](https://farach.github.io/fasttrop/articles/event-studies.md):
+
+  How to get the effect for each event time, how to keep some treated
+  cells out of the estimate, and how to adjust p-values for many tests.
+
+- [Choose a tuning
+  grid](https://farach.github.io/fasttrop/articles/tuning-grid.md):
+
+  Set the grid for the units of the outcome. Read a grid warning and
+  decide which values to try next.
 
 - [What TROP can and cannot
   do](https://farach.github.io/fasttrop/articles/limits.md):

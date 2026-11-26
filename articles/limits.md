@@ -148,8 +148,16 @@ Outcomes can still change over time for other reasons.
 
 ## The limits of this package
 
-These limits apply to fasttrop 0.2.0:
+These limits apply to fasttrop 0.3.0:
 
+- The function
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  and the argument `target` work only with the local method. The
+  bootstrap of
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  keeps the tuning parameters fixed. Refer to the article [Effects by
+  group and many
+  tests](https://farach.github.io/fasttrop/articles/event-studies.md).
 - The paper gives a model with covariates, but not one procedure to
   calculate their coefficients. fasttrop has two procedures. The global
   method with covariates is an extension of fasttrop. Refer to the
