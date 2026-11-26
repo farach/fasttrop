@@ -22,7 +22,11 @@ trop_matrix(
   control = trop_control(),
   seed = NULL,
   X = NULL,
-  covariate_method = c("joint", "residualize")
+  covariate_method = c("joint", "residualize"),
+  target = NULL,
+  strata = NULL,
+  boot_rows = NULL,
+  demean = FALSE
 )
 }
 \arguments{
@@ -38,7 +42,9 @@ have the same dimensions as \code{Y}.}
 with the names \code{time}, \code{unit}, and \code{nn}. If \code{lambda} is \code{NULL},
 cross-validation selects the tuning parameters from \code{grid}.}
 
-\item{grid}{The tuning grids from \code{\link[=trop_grid]{trop_grid()}}.}
+\item{grid}{The tuning grids from \code{\link[=trop_grid]{trop_grid()}}, or \code{"auto"}. With \code{"auto"},
+the function scales the default grid to the data. Refer to the section
+Tuning grid.}
 
 \item{cv_cells}{For the local method, the number of untreated cells in a
 random sample for the leave-one-out criterion. If \code{cv_cells} is \code{NULL},
@@ -78,6 +84,23 @@ such matrices. Refer to the section Covariates of \code{\link[=trop]{trop()}}.}
 
 \item{covariate_method}{Use \code{"joint"} or \code{"residualize"}. Refer to the
 section Covariates.}
+
+\item{target}{An optional name of a column with \code{TRUE} and \code{FALSE} (or 1 and
+0) for each row of \code{data}. A treated cell with \code{TRUE} is in the estimate.
+Refer to the section Target cells. \code{\link[=trop_matrix]{trop_matrix()}} takes a logical or 0/1
+matrix with the dimensions of \code{W}.}
+
+\item{strata}{An optional name of a column with the stratum of each unit. The
+value must be the same for all rows of a unit. \code{\link[=trop_matrix]{trop_matrix()}} takes a
+vector with one value for each unit. Refer to the section Inference.}
+
+\item{boot_rows}{An optional matrix of bootstrap draws from
+\code{\link[=trop_boot_rows]{trop_boot_rows()}}. If you use it, \code{n_boot} and \code{resample} do not apply,
+and you cannot use \code{strata}.}
+
+\item{demean}{Logical. If \code{TRUE}, the function subtracts the mean of the
+untreated outcomes of each unit before it fits the model. Refer to the
+section Tuning grid.}
 }
 \value{
 An object of class \code{trop}. Refer to \code{\link[=trop]{trop()}}.

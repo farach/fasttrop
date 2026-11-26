@@ -7,7 +7,8 @@
 #'   `W` (integer, 0 or 1), `X` (an N x T x p array or `NULL`), and the sorted
 #'   `units` and `times`.
 #' @noRd
-panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NULL) {
+panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NULL,
+                           target = NULL, strata = NULL) {
   if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
   for (nm in c("outcome", "treatment", "unit", "time")) {
     v <- get(nm)
@@ -45,7 +46,33 @@ panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NU
   if (!is.null(covariates)) {
     X <- covariate_array(data, covariates, i, t, N, TT, units, times, is.finite(y))
   }
-  list(Y = Y, W = W, X = X, units = units, times = times)
+  target_m <- NULL
+  if (!is.null(target)) {
+    if (!is.character(target) || length(target) != 1L || !target %in% names(data)) {
+      stop("`target` must be the name of one column in `data`.", call. = FALSE)
+    }
+    tv <- data[[target]]
+    if (is.numeric(tv) && !anyNA(tv) && all(tv %in% c(0, 1))) tv <- tv == 1
+    if (!is.logical(tv) || anyNA(tv)) {
+      stop(sprintf("Column `%s` must contain only TRUE and FALSE, or 1 and 0, and no `NA` values.",
+                   target), call. = FALSE)
+    }
+    target_m <- matrix(TRUE, N, TT, dimnames = dimnames(Y))
+    target_m[idx] <- tv
+  }
+  strata_v <- NULL
+  if (!is.null(strata)) {
+    if (!is.character(strata) || length(strata) != 1L || !strata %in% names(data)) {
+      stop("`strata` must be the name of one column in `data`.", call. = FALSE)
+    }
+    sv <- data[[strata]]
+    if (anyNA(sv)) stop(sprintf("Column `%s` must not have `NA` values.", strata), call. = FALSE)
+    strata_v <- sv[match(seq_len(N), i)]
+    if (any(sv != strata_v[i])) {
+      stop(sprintf("Column `%s` must have one value for each unit.", strata), call. = FALSE)
+    }
+  }
+  list(Y = Y, W = W, X = X, units = units, times = times, target = target_m, strata = strata_v)
 }
 
 #' Find the assignment design
@@ -75,6 +102,15 @@ trop_design <- function(W, obs) {
   k <- if (type == "block") TT - first[1L] + 1L else NA_integer_
   list(type = type, treated = treated, first = first, k = k,
        n_treated_units = length(treated), n_treated_cells = sum(W == 1L & obs == 1L))
+}
+
+as_target <- function(target, W) {
+  if (is.numeric(target) && !anyNA(target) && all(target %in% c(0, 1))) target <- target == 1
+  if (!is.matrix(target) || !is.logical(target) || !all(dim(target) == dim(W)) || anyNA(target)) {
+    stop("`target` must be a logical matrix with the dimensions of `Y`, and no `NA` values.",
+         call. = FALSE)
+  }
+  target
 }
 
 as_panel_inputs <- function(Y, W) {

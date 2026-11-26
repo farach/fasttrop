@@ -64,6 +64,8 @@ navbar:
         href: articles/read-your-results.html
       - text: Use covariates
         href: articles/covariates.html
+      - text: Effects by group and many tests
+        href: articles/event-studies.html
       - text: What TROP can and cannot do
         href: articles/limits.html
       - text: Glossary
@@ -91,6 +93,7 @@ articles:
   contents:
   - articles/read-your-results
   - articles/covariates
+  - articles/event-studies
   - articles/limits
 - title: The evidence
   desc: See how we checked the results and the speed of the package.
@@ -112,11 +115,18 @@ reference:
   desc: Show a fit and get its parts.
   contents:
   - trop-methods
+- title: Group effects and many tests
+  desc: Get the effect of groups of cells and adjust the p-values of many tests.
+  contents:
+  - trop_effects
+  - trop_stepdown
+  - trop_boot_rows
 - title: Settings
   desc: Set the solver options, the tuning grids, and the number of threads.
   contents:
   - trop_control
   - trop_grid
+  - trop_grid_scaled
   - trop_threads
 - title: Practice data
   desc: Make a panel with a known effect.
