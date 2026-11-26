@@ -31,11 +31,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Alex Farach \email{alexfarach@microsoft.com} [copyright holder]
+\strong{Maintainer}: Alex Farach \email{1520139+farach@users.noreply.github.com} [copyright holder]
 
 Authors:
 \itemize{
-  \item Alex Farach \email{alexfarach@microsoft.com} [copyright holder]
+  \item Alex Farach \email{1520139+farach@users.noreply.github.com} [copyright holder]
 }
 
 }
