@@ -208,6 +208,30 @@ of a rollout. Each draw keeps the number of treated units and the number
 of untreated units in each group. The argument `resample = "controls"`
 keeps the treated units fixed and resamples only the untreated units.
 
+## Anticipation and many sets of groups
+
+If units change before the start of the treatment, set the anticipation
+periods to `W = 1`. Then remove them from `target`. Thus, the fit does
+not use them as controls and does not include them in the estimate. Then
+give the number of anticipation periods to
+[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+with `anticipation`. Event time 0 is then the first period after the
+anticipation periods, and these periods get negative event times.
+
+A named list in `by` gives one result for each element from one set of
+draws. Give the list to
+[`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
+to adjust all the tests together.
+
+``` r
+
+sets <- trop_effects(fit_0, by = list(event = "event_time", cohort = "cohort"))
+names(sets)
+#> [1] "event"  "cohort"
+nrow(trop_stepdown(sets))
+#> [1] 10
+```
+
 ## Record the version
 
 Keep `fit$package` and `fit$lambda` with your results. For a fit that
@@ -229,10 +253,11 @@ Limits
 - As in [`trop()`](https://farach.github.io/fasttrop/reference/trop.md),
   the bootstrap keeps the tuning parameters fixed. It does not include
   the variation that comes from the selection of the tuning parameters.
-- [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
-  runs the draws one after another in R. With many draws and many cells,
-  it can be slower than the bootstrap of
-  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md).
+- Each call to
+  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  calculates the local estimator again for each draw. The C code runs
+  the draws in parallel with `threads`. To make many sets of groups from
+  one set of draws, give a named list to `by`.
 - The sup-t band and the stepdown p-values are accurate only with many
   draws. Use at least several hundred.
 - [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)

@@ -274,11 +274,32 @@ keeps the treated units fixed and resamples only the untreated
 units.</p>
 </div>
 <div class="section level2">
+<h2 id="anticipation-and-many-sets-of-groups">Anticipation and many sets of groups<a class="anchor" aria-label="anchor" href="#anticipation-and-many-sets-of-groups"></a>
+</h2>
+<p>If units change before the start of the treatment, set the
+anticipation periods to <code>W = 1</code>. Then remove them from
+<code>target</code>. Thus, the fit does not use them as controls and
+does not include them in the estimate. Then give the number of
+anticipation periods to <code><a href="../reference/trop_effects.html">trop_effects()</a></code> with
+<code>anticipation</code>. Event time 0 is then the first period after
+the anticipation periods, and these periods get negative event
+times.</p>
+<p>A named list in <code>by</code> gives one result for each element
+from one set of draws. Give the list to <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> to
+adjust all the tests together.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sets</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trop_effects.html">trop_effects</a></span><span class="op">(</span><span class="va">fit_0</span>, by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>event <span class="op">=</span> <span class="st">"event_time"</span>, cohort <span class="op">=</span> <span class="st">"cohort"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">sets</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "event"  "cohort"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/trop_stepdown.html">trop_stepdown</a></span><span class="op">(</span><span class="va">sets</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 10</span></span></code></pre></div>
+</div>
+<div class="section level2">
 <h2 id="record-the-version">Record the version<a class="anchor" aria-label="anchor" href="#record-the-version"></a>
 </h2>
 <p>Keep <code>fit$package</code> and <code>fit$lambda</code> with your
 results. For a fit that uses cross-validation, see <a href="tuning-grid.html">Choose a tuning grid</a>.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="va">package</span></span>
 <span><span class="co">#&gt; $version</span></span>
 <span><span class="co">#&gt; [1] "0.3.0"</span></span>
@@ -291,10 +312,10 @@ results. For a fit that uses cross-validation, see <a href="tuning-grid.html">Ch
 <li>As in <code><a href="../reference/trop.html">trop()</a></code>, the bootstrap keeps the tuning parameters
 fixed. It does not include the variation that comes from the selection
 of the tuning parameters.</li>
-<li>
-<code><a href="../reference/trop_effects.html">trop_effects()</a></code> runs the draws one after another in R.
-With many draws and many cells, it can be slower than the bootstrap of
-<code><a href="../reference/trop.html">trop()</a></code>.</li>
+<li>Each call to <code><a href="../reference/trop_effects.html">trop_effects()</a></code> calculates the local
+estimator again for each draw. The C code runs the draws in parallel
+with <code>threads</code>. To make many sets of groups from one set of
+draws, give a named list to <code>by</code>.</li>
 <li>The sup-t band and the stepdown p-values are accurate only with many
 draws. Use at least several hundred.</li>
 <li>

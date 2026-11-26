@@ -81,7 +81,8 @@ bootstrap standard errors, intervals, and simultaneous bands for all groups.</p>
 <span>  resample <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  conf_level <span class="op">=</span> <span class="va">fit</span><span class="op">$</span><span class="va">conf.level</span>,</span>
 <span>  ci <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"normal"</span>, <span class="st">"percentile"</span><span class="op">)</span>,</span>
-<span>  seed <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  anticipation <span class="op">=</span> <span class="fl">0L</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'trop_effects'</span></span>
@@ -139,6 +140,12 @@ setting of the fit.</p></dd>
 change the state of the random number generator in the R session.</p></dd>
 
 
+<dt id="arg-anticipation">anticipation<a class="anchor" aria-label="anchor" href="#arg-anticipation"></a></dt>
+<dd><p>The number of treated periods at the start of each run
+that come before the true start. Refer to the section Anticipation. The
+default 0 uses the first treated period as the start.</p></dd>
+
+
 <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>A <code>trop_effects</code> object.</p></dd>
 
@@ -163,13 +170,15 @@ The columns are the group (the name of the column is the value of <code>by</code
 <code>conf.low</code>, <code>conf.high</code>, <code>band.low</code>, and <code>band.high</code> are also in the data
 frame. The data frame has these attributes: <code>draws</code> (a matrix with one
 column for each group), <code>rows</code> (the rows of the draws), and <code>critical</code> (the
-critical value of the band).</p>
+critical value of the band). When <code>by</code> is a list, the result is a named
+list of such data frames.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The function uses the effects <code>tau</code> of the fit. Thus, the target cells of the
-fit are the only cells in the groups. A fit that has an <code>NA</code> effect for a
-cell does not give a value for that cell.</p>
+fit are the only cells in the groups. A cell that has no effect in the fit,
+for example a cell outside of the target, is not in a group. A group with no
+such cell is not in the result.</p>
     </div>
     <div class="section level2">
     <h2 id="groups">Groups<a class="anchor" aria-label="anchor" href="#groups"></a></h2>
@@ -185,8 +194,31 @@ treatment and starts it again, the count starts again.</p></li>
 <li><p>A matrix with the dimensions of the panel. The values are the group of each
 cell. A cell with <code>NA</code> is not in a group. Only treated cells with an effect
 are in groups.</p></li>
+<li><p>A named list of the values above, for example
+<code>list(event = "event_time", cohort = "cohort")</code>. The function then gives
+a named list with one result for each element. All results use the same
+bootstrap draws, and the function calculates the estimator only one time
+for each draw. A character element without a name uses its value as the
+name.</p></li>
 </ul><p>The argument <code>window</code> limits the cells to cells with an event time in the
 window. For example, <code>window = c(0, 3)</code> uses the first 4 treated periods.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="anticipation">Anticipation<a class="anchor" aria-label="anchor" href="#anticipation"></a></h2>
+
+
+<p>Sometimes the treatment has an effect before it starts, for example when
+units know the start date. A usual procedure is to set <code>W = 1</code> in the
+periods before the start, so that these cells are not controls. Then, the
+first <code>W = 1</code> cell is not the true start.</p>
+<p>With <code>anticipation = k</code>, the
+function counts the first <code>k</code> treated periods of each run as the periods
+before the start. Thus, these periods get the event times <code>-k</code> to <code>-1</code>, and
+the event time 0 is the true start. The cohort is also the period of the
+true start. A cohort that starts after the last period of the panel is not
+in a group.</p>
+<p>To keep the anticipation cells out of the estimate, also remove
+them from the <code>target</code> of the fit.</p>
     </div>
     <div class="section level2">
     <h2 id="inference">Inference<a class="anchor" aria-label="anchor" href="#inference"></a></h2>
@@ -197,11 +229,16 @@ calculates the local estimator again with the tuning parameters of the fit.
 Then it averages the effects of each group. The tuning parameters do not
 change. The standard error of a group is the standard deviation of its draws.
 A group that has no treated cell in a draw has no value for that draw.</p>
+<p>The draws run in parallel with the <code>threads</code> of the control of the fit.</p>
 <p>By default, the function uses the draws that the fit stored in <code>fit$boot$rows</code>.
 Then the average of all treated cells has the same draws as <code>fit$boot$draws</code>.
 With <code>n_boot</code>, the function makes new draws. With <code>boot_rows</code>, you give the
 draws. A group of one fit and a group of another fit have a joint
 distribution only if they use the same draws.</p>
+<p>Each call calculates the estimator again for each draw. To get many sets of
+groups, give them in one list to <code>by</code>. To calculate the draws only one time,
+make the fit with <code>se = "none"</code>. Then include <code>"overall"</code> in the list, and
+give the draws with <code>boot_rows</code>.</p>
 <p>The columns <code>band.low</code> and <code>band.high</code> give a simultaneous band with the
 sup-t method. The band has a critical value for all groups. The critical
 value is a quantile of the largest absolute value of the standardized draws
@@ -229,6 +266,17 @@ needs many draws. With only one group, the band columns are <code>NA</code>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>           1  1.97684       5    0.4643   1.0669     2.887   0.9599    2.9938</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>           2 -0.03763       5    0.3825  -0.7873     0.712  -0.8755    0.8002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Bootstrap: 50 draws. The band is simultaneous (sup-t) at the 95% level.</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Two sets of groups with one bootstrap sweep.</span></span></span>
+<span class="r-in"><span><span class="va">both</span> <span class="op">&lt;-</span> <span class="fu">trop_effects</span><span class="op">(</span><span class="va">fit</span>, by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>event <span class="op">=</span> <span class="st">"event_time"</span>, time <span class="op">=</span> <span class="st">"time"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="trop_stepdown.html">trop_stepdown</a></span><span class="op">(</span><span class="va">both</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       name    estimate std.error          t      p_raw      p_adj</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 event: 0  1.41712290 0.3534799  4.0090621 0.01960784 0.01960784</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 event: 1  1.97684134 0.4642597  4.2580507 0.01960784 0.01960784</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 event: 2 -0.03762763 0.3824907 -0.0983753 0.90196078 0.90196078</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 time: 10  1.41712290 0.3534799  4.0090621 0.01960784 0.01960784</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5 time: 11  1.97684134 0.4642597  4.2580507 0.01960784 0.01960784</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6 time: 12 -0.03762763 0.3824907 -0.0983753 0.90196078 0.90196078</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

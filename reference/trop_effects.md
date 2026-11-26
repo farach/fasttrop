@@ -20,7 +20,8 @@ trop_effects(
   resample = NULL,
   conf_level = fit$conf.level,
   ci = c("normal", "percentile"),
-  seed = NULL
+  seed = NULL,
+  anticipation = 0L
 )
 
 # S3 method for class 'trop_effects'
@@ -80,6 +81,12 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
   An optional integer seed for new draws. The function does not change
   the state of the random number generator in the R session.
 
+- anticipation:
+
+  The number of treated periods at the start of each run that come
+  before the true start. Refer to the section Anticipation. The default
+  0 uses the first treated period as the start.
+
 - x:
 
   A `trop_effects` object.
@@ -104,13 +111,15 @@ columns are the group (the name of the column is the value of `by`),
 `conf.low`, `conf.high`, `band.low`, and `band.high` are also in the
 data frame. The data frame has these attributes: `draws` (a matrix with
 one column for each group), `rows` (the rows of the draws), and
-`critical` (the critical value of the band).
+`critical` (the critical value of the band). When `by` is a list, the
+result is a named list of such data frames.
 
 ## Details
 
 The function uses the effects `tau` of the fit. Thus, the target cells
-of the fit are the only cells in the groups. A fit that has an `NA`
-effect for a cell does not give a value for that cell.
+of the fit are the only cells in the groups. A cell that has no effect
+in the fit, for example a cell outside of the target, is not in a group.
+A group with no such cell is not in the result.
 
 ## Groups
 
@@ -132,9 +141,32 @@ The argument `by` sets the groups:
   each cell. A cell with `NA` is not in a group. Only treated cells with
   an effect are in groups.
 
+- A named list of the values above, for example
+  `list(event = "event_time", cohort = "cohort")`. The function then
+  gives a named list with one result for each element. All results use
+  the same bootstrap draws, and the function calculates the estimator
+  only one time for each draw. A character element without a name uses
+  its value as the name.
+
 The argument `window` limits the cells to cells with an event time in
 the window. For example, `window = c(0, 3)` uses the first 4 treated
 periods.
+
+## Anticipation
+
+Sometimes the treatment has an effect before it starts, for example when
+units know the start date. A usual procedure is to set `W = 1` in the
+periods before the start, so that these cells are not controls. Then,
+the first `W = 1` cell is not the true start.
+
+With `anticipation = k`, the function counts the first `k` treated
+periods of each run as the periods before the start. Thus, these periods
+get the event times `-k` to `-1`, and the event time 0 is the true
+start. The cohort is also the period of the true start. A cohort that
+starts after the last period of the panel is not in a group.
+
+To keep the anticipation cells out of the estimate, also remove them
+from the `target` of the fit.
 
 ## Inference
 
@@ -145,11 +177,18 @@ parameters do not change. The standard error of a group is the standard
 deviation of its draws. A group that has no treated cell in a draw has
 no value for that draw.
 
+The draws run in parallel with the `threads` of the control of the fit.
+
 By default, the function uses the draws that the fit stored in
 `fit$boot$rows`. Then the average of all treated cells has the same
 draws as `fit$boot$draws`. With `n_boot`, the function makes new draws.
 With `boot_rows`, you give the draws. A group of one fit and a group of
 another fit have a joint distribution only if they use the same draws.
+
+Each call calculates the estimator again for each draw. To get many sets
+of groups, give them in one list to `by`. To calculate the draws only
+one time, make the fit with `se = "none"`. Then include `"overall"` in
+the list, and give the draws with `boot_rows`.
 
 The columns `band.low` and `band.high` give a simultaneous band with the
 sup-t method. The band has a critical value for all groups. The critical
@@ -180,4 +219,15 @@ trop_effects(fit, by = "event_time")
 #>           1  1.97684       5    0.4643   1.0669     2.887   0.9599    2.9938
 #>           2 -0.03763       5    0.3825  -0.7873     0.712  -0.8755    0.8002
 #> Bootstrap: 50 draws. The band is simultaneous (sup-t) at the 95% level.
+
+# Two sets of groups with one bootstrap sweep.
+both <- trop_effects(fit, by = list(event = "event_time", time = "time"))
+trop_stepdown(both)
+#>       name    estimate std.error          t      p_raw      p_adj
+#> 1 event: 0  1.41712290 0.3534799  4.0090621 0.01960784 0.01960784
+#> 2 event: 1  1.97684134 0.4642597  4.2580507 0.01960784 0.01960784
+#> 3 event: 2 -0.03762763 0.3824907 -0.0983753 0.90196078 0.90196078
+#> 4 time: 10  1.41712290 0.3534799  4.0090621 0.01960784 0.01960784
+#> 5 time: 11  1.97684134 0.4642597  4.2580507 0.01960784 0.01960784
+#> 6 time: 12 -0.03762763 0.3824907 -0.0983753 0.90196078 0.90196078
 ```

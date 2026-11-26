@@ -56,6 +56,20 @@
     </div>
 
     <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="fasttrop-development-version">fasttrop (development version)<a class="anchor" aria-label="anchor" href="#fasttrop-development-version"></a></h2>
+<div class="section level3">
+<h3 id="effects-by-group-development-version">Effects by group<a class="anchor" aria-label="anchor" href="#effects-by-group-development-version"></a></h3>
+<ul><li>
+<code><a href="../reference/trop_effects.html">trop_effects()</a></code> accepts a named list in <code>by</code>. It makes all the sets of groups from one set of bootstrap draws and returns a named list of <code>trop_effects</code> objects. Give this list to <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code>. Before, each set of groups needed a new set of draws.</li>
+<li>The new argument <code>anticipation</code> of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> gives event time 0 to the first period after the anticipation periods. The cohort is this period. Use it when you set the anticipation periods to <code>W = 1</code> and remove them from <code>target</code>. The default, 0, gives the result of version 0.3.0.</li>
+<li>The bootstrap of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> runs in the C code, in parallel with <code>threads</code>. Before, it ran in R, one draw after another.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-development-version">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version"></a></h3>
+<ul><li>In <code><a href="../reference/trop_effects.html">trop_effects()</a></code>, a treated cell that <code>target</code> removes is not in a group. Before, such cells made a group with no cells. That group had no estimate, and <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> then gave an error.</li>
+</ul></div>
+</div>
+    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.3.0" id="fasttrop-030">fasttrop 0.3.0<a class="anchor" aria-label="anchor" href="#fasttrop-030"></a></h2>
 <p>This version adds tools for real studies with many treated cells, many groups, and many tests. The default of each new argument gives the same result as version 0.2.0.</p>
 <div class="section level3">
