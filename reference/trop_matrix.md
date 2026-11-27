@@ -29,7 +29,8 @@ trop_matrix(
   target = NULL,
   strata = NULL,
   boot_rows = NULL,
-  demean = FALSE
+  demean = FALSE,
+  event_time = NULL
 )
 ```
 
@@ -150,6 +151,12 @@ trop_matrix(
   Logical. If `TRUE`, the function subtracts the mean of the untreated
   outcomes of each unit before it fits the model. Refer to the section
   Tuning grid.
+
+- event_time:
+
+  An optional numeric matrix with the dimensions of `Y`. It gives the
+  event time of each treated cell. Refer to the section Event times of
+  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md).
 
 ## Value
 

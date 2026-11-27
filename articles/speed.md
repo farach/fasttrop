@@ -47,6 +47,10 @@ This is a scale-up of one benchmark, not a measured run of the example.
   solver of the reference implementations.
 - The fit for a cell starts from the solution for the previous cell of
   the same unit.
+- The local method keeps the distance sums between units only for the
+  units that are targets of a fit. A bootstrap draw uses the memory of
+  its thread again. Thus, a panel with many untreated units uses less
+  memory.
 
 ## A comparison with other implementations
 
@@ -128,6 +132,16 @@ one thread. The times have some noise, so a value above 4 is possible.
     `se = "none"`. For the final result, use more draws.
 5.  When you repeat an analysis with the same tuning parameters, set
     `lambda`. Then fasttrop does not run the cross-validation.
+6.  To get many sets of groups, give them in one list to `by` of
+    [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md).
+    Then each draw calculates the estimator only one time.
+7.  For a long bootstrap, use `checkpoint` and `progress` in
+    [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md).
+    Then a stop does not lose the draws that are done.
+
+[`summary()`](https://rdrr.io/r/base/summary.html) of a fit shows the
+time in the C code of each step: the tuning, the estimate, and the
+bootstrap. Use these times to find the slow step.
 
 The global method is also faster, because it calculates one fit for all
 treated cells. But it is a different estimator, and it works only for a

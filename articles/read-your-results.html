@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,6 +48,7 @@
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -134,10 +135,13 @@ follow a hidden pattern more strongly than the untreated units.</p>
 <span><span class="co">#&gt;   ATT: 1.225  (SE 0.1945, 95% CI 0.8435 to 1.606)</span></span>
 <span><span class="co">#&gt;   lambda: time = 0, unit = 1, nn = 0.1</span></span>
 <span><span class="co">#&gt;   Tuning: loocv, score 99.73, 28 grid evaluations</span></span>
-<span><span class="co">#&gt;   Bootstrap: 200 draws (stratified), 0 failed, normal interval</span></span>
-<span><span class="co">#&gt;   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0</span></span>
-<span><span class="co">#&gt;   Time: 22.099 s in total, 22.083 s in the C code (4 threads)</span></span>
-<span><span class="co">#&gt;   fasttrop 0.3.0</span></span></code></pre></div>
+<span><span class="co">#&gt;   Tuning score: uses 200 of 200 cells</span></span>
+<span><span class="co">#&gt;   Bootstrap: 200 draws (stratified), 0 without an estimate, normal interval</span></span>
+<span><span class="co">#&gt;   Bootstrap fits: all converged, and no fit failed</span></span>
+<span><span class="co">#&gt;   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0 | Failed fits: 0</span></span>
+<span><span class="co">#&gt;   Time: 22.222 s in total, 22.204 s in the C code (4 threads)</span></span>
+<span><span class="co">#&gt;   C time by step: tuning 12.868 s, estimate 0.047 s, bootstrap 9.289 s</span></span>
+<span><span class="co">#&gt;   fasttrop 0.4.0</span></span></code></pre></div>
 <p>The first lines of the output give the method, the design, and the
 size of the panel. fasttrop finds the design from the treatment column.
 Make sure that the design is the design that you expect. If it is not,

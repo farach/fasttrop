@@ -24,18 +24,37 @@ Show a fit and get its parts.
 
   Methods for `trop` objects
 
+## Plan a study
+
+Make the treatment and the target from start dates, and count the cells
+of each group.
+
+- [`trop_rollout()`](https://farach.github.io/fasttrop/reference/trop_rollout.md)
+  : Make the treatment and the target from start dates
+- [`trop_cells()`](https://farach.github.io/fasttrop/reference/trop_cells.md)
+  [`print(`*`<trop_cells>`*`)`](https://farach.github.io/fasttrop/reference/trop_cells.md)
+  : Count the cells of each group before the bootstrap
+
 ## Group effects and many tests
 
-Get the effect of groups of cells and adjust the p-values of many tests.
+Get the effect of groups of cells, combine the effects, and adjust the
+p-values of many tests.
 
 - [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
   [`print(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
   [`as.data.frame(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  [`coef(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+  [`vcov(`*`<trop_effects>`*`)`](https://farach.github.io/fasttrop/reference/trop_effects.md)
   : Effects by event time, cohort, period, or unit
+- [`trop_contrast()`](https://farach.github.io/fasttrop/reference/trop_contrast.md)
+  : Linear combinations of group effects
 - [`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
+  [`print(`*`<trop_stepdown>`*`)`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
   : Romano-Wolf stepdown p-values
 - [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
   : Make bootstrap rows
+- [`trop_honest_inputs()`](https://farach.github.io/fasttrop/reference/trop_honest_inputs.md)
+  : Inputs for a sensitivity analysis of pre-trends
 
 ## Settings
 

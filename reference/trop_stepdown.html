@@ -17,7 +17,7 @@ same bootstrap draws."><meta property="og:image" content="https://farach.github.
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,6 +31,7 @@ same bootstrap draws."><meta property="og:image" content="https://farach.github.
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -77,7 +78,10 @@ same bootstrap draws.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">trop_stepdown</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">trop_stepdown</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'trop_stepdown'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">x</span>, digits <span class="op">=</span> <span class="fl">4L</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -87,16 +91,26 @@ same bootstrap draws.</p>
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>A <code>trop</code> object, a <code>trop_effects</code> object with a bootstrap, or a list
 of such objects. Use a named list to name the tests. All objects must have
-the same bootstrap rows. To make them, give the same <code>boot_rows</code> from
-<code><a href="trop_boot_rows.html">trop_boot_rows()</a></code> to each <code><a href="trop.html">trop()</a></code> and <code><a href="trop_effects.html">trop_effects()</a></code> call.</p></dd>
+the same bootstrap draws. Refer to the section Joint draws. The result of
+<code><a href="trop_contrast.html">trop_contrast()</a></code> is also a <code>trop_effects</code> object.</p></dd>
+
+
+<dt id="arg-digits">digits<a class="anchor" aria-label="anchor" href="#arg-digits"></a></dt>
+<dd><p>The number of significant digits to show.</p></dd>
+
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>Not used.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A data frame with one row for each estimate and with the columns
-<code>name</code>, <code>estimate</code>, <code>std.error</code>, <code>t</code>, <code>p_raw</code>, and <code>p_adj</code>. The column
-<code>p_raw</code> is the bootstrap p-value of one test, and <code>p_adj</code> is the adjusted
-p-value. An estimate with no standard error has no p-value.</p>
+    <p>A data frame of class <code>trop_stepdown</code> with one row for each estimate
+and with the columns <code>name</code>, <code>estimate</code>, <code>std.error</code>, <code>t</code>, <code>p_raw</code>, and
+<code>p_adj</code>. The column <code>p_raw</code> is the bootstrap p-value of one test, and
+<code>p_adj</code> is the adjusted p-value. An estimate with no standard error has no
+p-value. The attribute <code>n_draws</code> is the number of draws that the function
+uses, and <code>n_boot</code> is the number of draws.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -106,11 +120,29 @@ null hypothesis is that the effect is 0. The statistics of the draws are the
 absolute values of the centered draws divided by the standard errors. The
 function sorts the estimates by \(|t|\). In each step, it compares \(|t|\)
 with the largest statistic of the draws over the estimates that remain.</p>
-<p>The p-value is (1 + the number of draws with a larger value) / (the number of
-draws + 1). An adjusted p-value is never smaller than the adjusted p-value of
-an estimate with a larger \(|t|\).</p>
-<p>The function uses only the draws that have a value for all estimates. The
+<p>The p-value is (1 + the number of draws with a value that is equal or
+larger) / (the number of draws + 1). An adjusted p-value is never smaller
+than the adjusted p-value of an estimate with a larger \(|t|\).</p>
+<p>The function uses only the draws that have a value for all estimates. It
+gives a warning message if some draws do not have a value for all
+estimates. The print method shows the number of draws that it uses. The
 result is not exact if the number of draws is small.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="joint-draws">Joint draws<a class="anchor" aria-label="anchor" href="#joint-draws"></a></h2>
+
+
+<p>Draw b of each object must use the same units. Give the same <code>boot_rows</code>
+from <code><a href="trop_boot_rows.html">trop_boot_rows()</a></code> to each <code><a href="trop.html">trop()</a></code> and <code><a href="trop_effects.html">trop_effects()</a></code> call. Use the
+same order of the units in each panel.</p>
+<p>If each object has valid unit names, the function compares the units of
+each draw. A valid name is not <code>NA</code>, and each unit has a different name. A
+fit of <code><a href="trop.html">trop()</a></code> always has valid names. A fit of <code><a href="trop_matrix.html">trop_matrix()</a></code> has the row
+names of <code>Y</code>. If no object has unit names, the function compares only the
+row numbers.</p>
+<p>If only some objects have valid names, draw b of all objects must have the
+same row numbers. The objects with valid names must also have the same
+units. Then the function gives a warning.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -119,7 +151,7 @@ Formalized Data Snooping. <em>Econometrica</em>, 73(4), 1237-1282.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="trop_boot_rows.html">trop_boot_rows()</a></code>, <code><a href="trop_effects.html">trop_effects()</a></code></p></div>
+    <div class="dont-index"><p><code><a href="trop_boot_rows.html">trop_boot_rows()</a></code>, <code><a href="trop_effects.html">trop_effects()</a></code>, <code><a href="trop_contrast.html">trop_contrast()</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -132,10 +164,12 @@ Formalized Data Snooping. <em>Econometrica</em>, 73(4), 1237-1282.</p>
 <span class="r-in"><span>            lambda <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>time <span class="op">=</span> <span class="fl">0.2</span>, unit <span class="op">=</span> <span class="fl">0.5</span>, nn <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>            boot_rows <span class="op">=</span> <span class="va">rows</span>, control <span class="op">=</span> <span class="fu"><a href="trop_control.html">trop_control</a></span><span class="op">(</span>threads <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">trop_stepdown</span><span class="op">(</span><span class="fu"><a href="trop_effects.html">trop_effects</a></span><span class="op">(</span><span class="va">fit</span>, by <span class="op">=</span> <span class="st">"event_time"</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   name    estimate std.error           t      p_raw      p_adj</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    0  1.41712290 0.3612847  3.92245474 0.02439024 0.02439024</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2    1  1.97684134 0.4881943  4.04929179 0.02439024 0.02439024</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3    2 -0.03762763 0.3831373 -0.09820927 0.87804878 0.87804878</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Romano-Wolf stepdown p-values</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  name estimate std.error        t   p_raw   p_adj</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     0  1.41712    0.3613  3.92245 0.02439 0.02439</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     1  1.97684    0.4882  4.04929 0.02439 0.02439</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     2 -0.03763    0.3831 -0.09821 0.87805 0.87805</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Draws: 40 of 40 have a value for all estimates. The p-values use these draws.</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

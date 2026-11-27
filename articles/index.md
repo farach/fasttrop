@@ -35,6 +35,13 @@ Read the results of a fit and know the limits of the method.
   How to get the effect for each event time, how to keep some treated
   cells out of the estimate, and how to adjust p-values for many tests.
 
+- [Plan, run, and examine a large
+  study](https://farach.github.io/fasttrop/articles/large-studies.md):
+
+  How to make the treatment, the target, and the event times from start
+  dates, count the cells before you see the results, run a long
+  bootstrap with a checkpoint, and read the diagnostics of the draws.
+
 - [Choose a tuning
   grid](https://farach.github.io/fasttrop/articles/tuning-grid.md):
 

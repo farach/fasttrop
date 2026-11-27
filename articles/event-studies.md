@@ -17,6 +17,10 @@ Key points
   [`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
   to adjust the p-values.
 - This article uses practice data. The data have a known effect.
+- For a full study, read [Plan, run, and examine a large
+  study](https://farach.github.io/fasttrop/articles/large-studies.md).
+  It shows start dates, counts of cells, weights, checkpoints,
+  diagnostics, and contrasts.
 
 ## A practice panel
 
@@ -74,19 +78,28 @@ also give a matrix with one group number for each cell.
 ev <- trop_effects(fit, by = "event_time")
 ev
 #> TROP effects by event time
-#>  event_time estimate n_cells std.error conf.low conf.high band.low band.high
-#>           0   1.2331      12    0.3824   0.4836     1.983  0.27808     2.188
-#>           1   1.5221       8    0.3752   0.7867     2.258  0.58494     2.459
-#>           2   1.2890       7    0.2511   0.7970     1.781  0.66200     1.916
-#>           3   0.8586       6    0.1949   0.4767     1.241  0.37194     1.345
-#>           4   1.4251       4    0.5728   0.3024     2.548 -0.00547     2.856
-#> Bootstrap: 100 draws. The band is simultaneous (sup-t) at the 95% level.
+#>   Weights: each cell has the same weight.
+#>  event_time estimate n_cells n_units std.error conf.low conf.high band.low
+#>           0   1.2331      12      12    0.3824   0.4836     1.983  0.27808
+#>           1   1.5221       8       8    0.3752   0.7867     2.258  0.58494
+#>           2   1.2890       7       7    0.2511   0.7970     1.781  0.66200
+#>           3   0.8586       6       6    0.1949   0.4767     1.241  0.37194
+#>           4   1.4251       4       4    0.5728   0.3024     2.548 -0.00547
+#>  band.high n_draws
+#>      2.188     100
+#>      2.459     100
+#>      1.916     100
+#>      1.345     100
+#>      2.856     100
+#> Bootstrap: 100 draws. The band is simultaneous (sup-t) at the 95% level. It uses the 100 draws with a value for all rows.
 ```
 
 The estimate of a group is the mean of the effects of its cells. The
-column `n_cells` gives the number of cells. The function uses the
-bootstrap draws of the fit. Thus, the draws of all groups come from the
-same resamples of units. This is necessary for the band.
+column `n_cells` gives the number of cells, and `n_units` gives the
+number of units. The column `n_draws` gives the number of draws with a
+value for the group. The function uses the bootstrap draws of the fit.
+Thus, the draws of all groups come from the same resamples of units.
+This is necessary for the band.
 
 Compare `n_cells` across the rows. Units that start treatment late can
 contribute to the first event time but not the last.
@@ -177,28 +190,38 @@ fit_0 <- trop(panel, "y0", "d", "unit", "time", lambda = lambda, boot_rows = row
 
 res <- trop_stepdown(list(effect = fit_y, no_effect = fit_0))
 res
-#>        name  estimate std.error        t      p_raw      p_adj
-#> 1    effect 1.2662039 0.2642579 4.791547 0.00990099 0.00990099
-#> 2 no_effect 0.2662039 0.2642579 1.007364 0.27722772 0.27722772
+#> Romano-Wolf stepdown p-values
+#>       name estimate std.error     t    p_raw    p_adj
+#>     effect   1.2662    0.2643 4.792 0.009901 0.009901
+#>  no_effect   0.2662    0.2643 1.007 0.277228 0.277228
+#> Draws: 100 of 100 have a value for all estimates. The p-values use these draws.
 ```
 
 The column `p_raw` is the p-value of one test. The column `p_adj` is the
 adjusted p-value. An adjusted p-value is never smaller than the raw
-p-value. You can also give
+p-value.
+
+You can also give
 [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
-objects, for example to test each event time. The objects must have the
-same bootstrap rows. If they do not, the function gives an error.
+objects, for example to test each event time. Each draw of the objects
+must use the same units. Give the same `boot_rows` to each fit. If the
+objects have unit names, the function compares the units of each draw,
+and it gives an error if they are different.
 
 ``` r
 
 ev_0 <- trop_effects(fit_0, by = "event_time")
 trop_stepdown(ev_0)
-#>   name   estimate std.error          t     p_raw     p_adj
-#> 1    0  0.2331260 0.4445835  0.5243695 0.6060606 0.8888889
-#> 2    1  0.5221123 0.3670260  1.4225484 0.1818182 0.4545455
-#> 3    2  0.2890341 0.3153513  0.9165463 0.2424242 0.7373737
-#> 4    3 -0.1413875 0.2302258 -0.6141254 0.4343434 0.8888889
-#> 5    4  0.4250548 0.6535067  0.6504215 0.4949495 0.8888889
+#> Warning: 2 of 100 draws do not have a value for all estimates. The stepdown
+#> uses the other 98 draws.
+#> Romano-Wolf stepdown p-values
+#>  name estimate std.error       t  p_raw  p_adj
+#>     0   0.2331    0.4446  0.5244 0.6061 0.8889
+#>     1   0.5221    0.3670  1.4225 0.1818 0.4545
+#>     2   0.2890    0.3154  0.9165 0.2424 0.7374
+#>     3  -0.1414    0.2302 -0.6141 0.4343 0.8889
+#>     4   0.4251    0.6535  0.6504 0.4949 0.8889
+#> Draws: 98 of 100 have a value for all estimates. The p-values use these draws.
 ```
 
 With `strata`,
@@ -208,20 +231,41 @@ of a rollout. Each draw keeps the number of treated units and the number
 of untreated units in each group. The argument `resample = "controls"`
 keeps the treated units fixed and resamples only the untreated units.
 
+With the cohort of each unit as `strata`, each draw has the same number
+of units of each cohort as the data. Give the units that are never
+treated their own stratum. A group can still have no value in a draw if
+the untreated units of the draw do not identify its cells. A cohort with
+few units has little variation in such draws.
+
 ## Anticipation and many sets of groups
 
 If units change before the start of the treatment, set the anticipation
 periods to `W = 1`. Then remove them from `target`. Thus, the fit does
-not use them as controls and does not include them in the estimate. Then
-give the number of anticipation periods to
+not use them as controls and does not include them in the estimate.
+[`trop_rollout()`](https://farach.github.io/fasttrop/reference/trop_rollout.md)
+makes these columns and the event time of each row from the start dates.
+
+Give the event times to
+[`trop()`](https://farach.github.io/fasttrop/reference/trop.md) with
+`event_time`. Then
 [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
-with `anticipation`. Event time 0 is then the first period after the
-anticipation periods, and these periods get negative event times.
+and
+[`trop_cells()`](https://farach.github.io/fasttrop/reference/trop_cells.md)
+use them. Event time 0 is the true start, and the anticipation periods
+get negative event times. Without `event_time`, give the number of
+anticipation periods to
+[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+with `anticipation`. This method works only if the panel has a row for
+the first treated period of each run. Refer to [Plan, run, and examine a
+large
+study](https://farach.github.io/fasttrop/articles/large-studies.md).
 
 A named list in `by` gives one result for each element from one set of
 draws. Give the list to
 [`trop_stepdown()`](https://farach.github.io/fasttrop/reference/trop_stepdown.md)
-to adjust all the tests together.
+to adjust all the tests together. Use
+[`trop_cells()`](https://farach.github.io/fasttrop/reference/trop_cells.md)
+to count the cells of each group before you calculate the bootstrap.
 
 ``` r
 
@@ -229,6 +273,8 @@ sets <- trop_effects(fit_0, by = list(event = "event_time", cohort = "cohort"))
 names(sets)
 #> [1] "event"  "cohort"
 nrow(trop_stepdown(sets))
+#> Warning: 69 of 100 draws do not have a value for all estimates. The stepdown
+#> uses the other 31 draws.
 #> [1] 10
 ```
 
@@ -242,7 +288,7 @@ grid](https://farach.github.io/fasttrop/articles/tuning-grid.md).
 
 fit$package
 #> $version
-#> [1] "0.3.0"
+#> [1] "0.4.0"
 #> 
 #> $sha
 #> [1] NA

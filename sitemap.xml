@@ -8,6 +8,7 @@
 <url><loc>https://farach.github.io/fasttrop/articles/fasttrop.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/glossary.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/index.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/articles/large-studies.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/limits.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/read-your-results.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/articles/speed.html</loc></url>
@@ -22,11 +23,15 @@
 <url><loc>https://farach.github.io/fasttrop/reference/trop-methods.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_boot_rows.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_cells.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_contrast.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_control.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_effects.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_grid.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_grid_scaled.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_honest_inputs.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_matrix.html</loc></url>
+<url><loc>https://farach.github.io/fasttrop/reference/trop_rollout.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_simulate.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_stepdown.html</loc></url>
 <url><loc>https://farach.github.io/fasttrop/reference/trop_threads.html</loc></url>

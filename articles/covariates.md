@@ -83,11 +83,15 @@ panel$y <- panel$y + panel$x
 
 without <- trop(panel, "y", "d", "unit", "time", method = "global",
                 se = "none", seed = 1)
+#> Warning: In the cross-validation, 24 placebo fit(s) did not converge (0 at the
+#> chosen values). Use a larger `max_iter` in trop_control().
 #> Warning: The cross-validation chose the smallest value of `nn` (0.01) of the
 #> grid. A value outside of the grid can fit better. Use a wider grid or `grid =
 #> "auto"`.
 with_x <- trop(panel, "y", "d", "unit", "time", method = "global",
                se = "none", seed = 1, covariates = "x")
+#> Warning: In the cross-validation, 34 placebo fit(s) did not converge (0 at the
+#> chosen values). Use a larger `max_iter` in trop_control().
 #> Warning: The cross-validation chose the smallest value of `nn` (0.01) of the
 #> grid. A value outside of the grid can fit better. Use a wider grid or `grid =
 #> "auto"`.

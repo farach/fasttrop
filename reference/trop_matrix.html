@@ -9,7 +9,7 @@ the columns are periods."><meta property="og:image" content="https://farach.gith
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -23,6 +23,7 @@ the columns are periods."><meta property="og:image" content="https://farach.gith
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -87,7 +88,8 @@ the columns are periods.</p>
 <span>  target <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  strata <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  boot_rows <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  demean <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  demean <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  event_time <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -207,6 +209,12 @@ and you cannot use <code>strata</code>.</p></dd>
 <dd><p>Logical. If <code>TRUE</code>, the function subtracts the mean of the
 untreated outcomes of each unit before it fits the model. Refer to the
 section Tuning grid.</p></dd>
+
+
+<dt id="arg-event-time">event_time<a class="anchor" aria-label="anchor" href="#arg-event-time"></a></dt>
+<dd><p>An optional numeric matrix with the dimensions of <code>Y</code>. It
+gives the event time of each treated cell. Refer to the section Event
+times of <code><a href="trop.html">trop()</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

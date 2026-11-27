@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,6 +21,7 @@
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -56,21 +57,84 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="development version" id="fasttrop-development-version">fasttrop (development version)<a class="anchor" aria-label="anchor" href="#fasttrop-development-version"></a></h2>
+<h2 class="pkg-version" data-toc-text="0.4.0" id="fasttrop-040">fasttrop 0.4.0<a class="anchor" aria-label="anchor" href="#fasttrop-040"></a></h2>
+<p>This version adds tools for long studies. It adds diagnostics for each bootstrap draw, checkpoints, and weights. It also counts the cells of the estimate before the bootstrap.</p>
+<p>With the default of each new argument, most results are the same as in version 0.3.0. These results can change:</p>
+<ul><li>The cross-validation can select different tuning parameters when some tuning values do not give a score for all cells or all placebo cells.</li>
+<li>The global placebo cross-validation can select different tuning parameters when <code>placebo_size</code> is more than 1. This also occurs when a placebo unit has no outcome in the held-out periods.</li>
+<li>The global estimator does not estimate a cell that the untreated cells do not identify. A bootstrap draw of the global estimator uses the same treated units as the fit.</li>
+<li>The sup-t band of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> uses only the draws with a value for all groups.</li>
+<li>In a <code><a href="../reference/trop.html">trop()</a></code> fit, a period without a row does not stop a treatment run. Thus, the event times and the cohorts of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> can change.</li>
+</ul><p>Refer to the sections Changes and Bug fixes.</p>
 <div class="section level3">
-<h3 id="effects-by-group-development-version">Effects by group<a class="anchor" aria-label="anchor" href="#effects-by-group-development-version"></a></h3>
+<h3 id="plan-the-estimand-0-4-0">Plan the estimand<a class="anchor" aria-label="anchor" href="#plan-the-estimand-0-4-0"></a></h3>
+<ul><li>The new function <code><a href="../reference/trop_rollout.html">trop_rollout()</a></code> makes the treatment, the target, and the event time from the start date of each unit. With <code>anticipation</code>, it marks the periods before the start as treated. These periods are not controls, and by default they are not in the target.</li>
+<li>The new argument <code>event_time</code> of <code><a href="../reference/trop.html">trop()</a></code> and <code><a href="../reference/trop_matrix.html">trop_matrix()</a></code> gives the event time of each treated cell. The fit keeps these event times. Then <code><a href="../reference/trop_effects.html">trop_effects()</a></code> and <code><a href="../reference/trop_cells.html">trop_cells()</a></code> use them for the event times, the cohorts, and <code>window</code>. Use the column <code>event_time</code> of <code><a href="../reference/trop_rollout.html">trop_rollout()</a></code>. This is necessary when the panel has no row for the start of a run, or when the anticipation periods start before the panel.</li>
+<li>In a run of treated periods, the event time must increase by 1 from one period to the next. Otherwise, the function stops with an error.</li>
+<li>The new function <code><a href="../reference/trop_cells.html">trop_cells()</a></code> counts the cells of each group of <code><a href="../reference/trop_effects.html">trop_effects()</a></code>. It counts the cells in the estimate, the cells outside of the target, and the cells with no effect. It does not show the effects. Thus, you can examine the estimand before you see the results or calculate the bootstrap. If no treated cell is in a group, the result has no rows, and the print method shows where the treated cells are.</li>
+<li>The new arguments <code>weights</code> and <code>unit_weights</code> of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> set the weight of each cell in a group. With <code>weights = "unit"</code>, each unit has the same total weight in a group. With <code>unit_weights</code>, each unit has its own weight. The bootstrap uses the same weights.</li>
+<li>The weights are relative. In each group, the functions divide the weights by the largest weight of the units of that group. Thus, the estimate of a group does not depend on the weights of other units. In a group, the largest positive weight must be less than 1e200 times the smallest positive weight. Named weights must agree exactly with the unit names of the fit.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="effects-by-group-0-4-0">Effects by group<a class="anchor" aria-label="anchor" href="#effects-by-group-0-4-0"></a></h3>
 <ul><li>
 <code><a href="../reference/trop_effects.html">trop_effects()</a></code> accepts a named list in <code>by</code>. It makes all the sets of groups from one set of bootstrap draws and returns a named list of <code>trop_effects</code> objects. Give this list to <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code>. Before, each set of groups needed a new set of draws.</li>
-<li>The new argument <code>anticipation</code> of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> gives event time 0 to the first period after the anticipation periods. The cohort is this period. Use it when you set the anticipation periods to <code>W = 1</code> and remove them from <code>target</code>. The default, 0, gives the result of version 0.3.0.</li>
+<li>The new argument <code>anticipation</code> of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> gives event time 0 to the first period after the anticipation periods. The cohort is this period. Use it when you set the anticipation periods to <code>W = 1</code> and remove them from <code>target</code>. The default, 0, gives the result of version 0.3.0. If the fit has event times from <code>event_time</code>, <code>anticipation</code> must be 0. The function gives a warning when a run starts in the first period, because its anticipation periods can be before the panel.</li>
 <li>The bootstrap of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> runs in the C code, in parallel with <code>threads</code>. Before, it ran in R, one draw after another.</li>
+<li>The result of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> has the new columns <code>n_units</code> and <code>n_draws</code>. The column <code>n_draws</code> is the number of draws with a value for each group. The function gives a warning for a group with fewer than 2 draws with a value.</li>
+<li>The new methods <code><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef()</a></code> and <code><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov()</a></code> work for <code>trop_effects</code> objects. The new function <code><a href="../reference/trop_contrast.html">trop_contrast()</a></code> calculates linear combinations of group estimates from the same draws, for example the mean of event times 0 to 3. Each combination uses only the estimates with a coefficient that is not 0. <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> accepts its result.</li>
+<li>The new function <code><a href="../reference/trop_honest_inputs.html">trop_honest_inputs()</a></code> makes the inputs of the ‘HonestDiD’ package from event-time estimates with a reference period. Its element <code>l_vec</code> gives the weights of the event times that the sensitivity analysis examines. By default, this is event time 0. Give <code>l_vec</code> to ‘HonestDiD’, because the default of ‘HonestDiD’ is the first event time after the reference. The function does not accept event times with gaps.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="speed-development-version">Speed<a class="anchor" aria-label="anchor" href="#speed-development-version"></a></h3>
-<ul><li>The local estimator calculates time-decay weights once for each fit or cross-validation call and shares them across worker threads. It still uses direct exponential values to preserve zero weights after underflow.</li>
+<h3 id="diagnostics-0-4-0">Diagnostics<a class="anchor" aria-label="anchor" href="#diagnostics-0-4-0"></a></h3>
+<ul><li>Each fit now has <code>n_failed</code>, the number of fits that failed. A fit fails if the singular value decomposition fails or if the result is not finite. Such a cell has no effect, and the function gives a warning message. Before, a failed decomposition gave a low-rank term of 0 without a message.</li>
+<li>If <code>dgesdd</code> fails, the C code now uses the LAPACK routine <code>dgesvd</code> for the decomposition.</li>
+<li>The bootstrap now counts the fits and the cells of each draw. A fit has these counts in <code>boot$diagnostics</code>, and a <code>trop_effects</code> object has them in the attribute <code>diagnostics</code>. They give the fits that did not converge, the fits that failed, and the cells that the draw cannot identify. The column <code>n_dropped</code> counts the cells that have an effect in the fit, but that the draw cannot identify. The functions give a warning message when a draw has such fits or cells. <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> and <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> show them.</li>
+<li>A draw with no treated cell is not a failed fit. The messages now tell the two cases apart. They also tell when a group has no standard error.</li>
+<li>The trace of the cross-validation in <code>cv$trace</code> now has three counts for each grid point. They are the cells with a score (<code>n_valid</code>), the fits that did not converge, and the fits that failed. The function gives a warning message when fits of the cross-validation do not converge or fail.</li>
+<li>
+<code>fit$timing</code> now has the time in the C code of each step: the tuning, the estimate, and the bootstrap. <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> shows them.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="bug-fixes-development-version">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-development-version"></a></h3>
+<h3 id="long-runs-0-4-0">Long runs<a class="anchor" aria-label="anchor" href="#long-runs-0-4-0"></a></h3>
+<ul><li>The new arguments <code>progress</code> and <code>checkpoint</code> of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> show the progress of the bootstrap and save the draws to a file after each block. If the calculation stops, the same call continues from the file. The results are equal to the results of one run without a stop. A fingerprint makes sure that the file is for the same calculation.</li>
+<li>Before the bootstrap starts, the function makes sure that it can write to the folder of the file. The test and the save use new temporary files with short names. Thus, they do not change other files in the folder.</li>
+<li>The file has a hash of the results. The function stops with an error if the results in the file do not agree with the hash. It also stops if a result cannot be the result of a bootstrap draw.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="changes-0-4-0">Changes<a class="anchor" aria-label="anchor" href="#changes-0-4-0"></a></h3>
+<ul><li>The cross-validation now compares two tuning values first by the number of cells with a score. For the global method, these are the placebo cells with an effect. With the same number, the smaller score is better. Before, a tuning value with a score for fewer cells sometimes won, because its score used fewer cells. The selection changes only when the tuning values have scores for different numbers of cells.</li>
+<li>In <code>cv$trace</code>, the column <code>n_valid</code> gives this number of cells. The new element <code>cv$n_cells</code> gives the number of all such cells.</li>
+<li>If no tuning value has a usable score, the cross-validation now stops with an error. Before, it selected the first value of the grid. If the chosen values have a score for fewer cells than the criterion has, the function gives a warning.</li>
+<li>The sup-t band of <code><a href="../reference/trop_effects.html">trop_effects()</a></code> now uses only the draws with a value for all groups, as <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> does. The centers and the standard errors of the band also come from these draws. Before, a draw with no value for some groups used the largest value of the other groups. Thus, the band was sometimes too narrow. When all draws have a value for all groups, the band does not change.</li>
+<li>The attribute <code>n_complete</code> gives the number of draws of the band. If fewer than 2 draws have a value for all groups, the band is not available, and the print method gives the reason.</li>
+<li>In <code><a href="../reference/trop.html">trop()</a></code>, a cell without a row now gets a treatment from the rows of its unit. It gets 1 if the nearest row before it has 1, and the nearest row after it has 1 or does not exist. Otherwise, it gets 0. Thus, a period without a row does not stop a treatment run.</li>
+<li>Before, a period without a row in a treatment run gave the design “general”, a warning that the treatment stops, and an error with <code>method = "global"</code>. Also, <code><a href="../reference/trop_effects.html">trop_effects()</a></code> started the event times and the cohort again after that period. The estimates do not change, because a cell without a row has no outcome.</li>
+<li>With <code>event_time</code>, the treated rows after a cell without a row can show that their run starts after the cell. Then the cell gets <code>W = 0</code>, and a new run starts after it. A run that starts before the cell must agree with the rows before the cell. Otherwise, the function stops with an error.</li>
+<li>If the panel has no rows just before the first treated row of a run, the start of the run is not certain. Then <code><a href="../reference/trop.html">trop()</a></code> gives a warning. Give <code>event_time</code> to get the correct event times.</li>
+<li>
+<code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> now returns an object of class <code>trop_stepdown</code>. Its print method shows the number of draws that it uses. The function gives a warning message when some draws do not have a value for all estimates.</li>
+<li>
+<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> now shows the number of draws without an estimate. Before, it called these draws failed draws. A failed fit is a different count.</li>
+<li>The functions now give an error when the rows of a <code>trop_effects</code> object do not match its draws. This occurs when you remove rows of the object.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="speed-and-memory-0-4-0">Speed and memory<a class="anchor" aria-label="anchor" href="#speed-and-memory-0-4-0"></a></h3>
+<ul><li>The local estimator now keeps the distance sums only for the units that are targets of a fit. Before, it kept the sums for all pairs of units, in each thread. For a panel with many untreated units, this uses much less memory. With <code>unit = 0</code>, the estimator keeps no distance sums. The estimates and the draws are the same as before.</li>
+<li>A bootstrap draw of the local estimator now uses the memory of its thread again. Before, each draw allocated new memory.</li>
+<li>The local estimator calculates time-decay weights once for each fit or cross-validation call and shares them across worker threads. It still uses direct exponential values to preserve zero weights after underflow.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-0-4-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-4-0"></a></h3>
 <ul><li>In <code><a href="../reference/trop_effects.html">trop_effects()</a></code>, a treated cell that <code>target</code> removes is not in a group. Before, such cells made a group with no cells. That group had no estimate, and <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> then gave an error.</li>
+<li>The global estimator now finds the treated cells that the untreated cells do not identify. An example is a period with no untreated outcome. It does not estimate these cells, and it counts them in <code>n_skipped</code>. Before, it gave a value for such cells without a message. This also applies to each bootstrap draw.</li>
+<li>
+<code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> and <code><a href="../reference/trop_contrast.html">trop_contrast()</a></code> now make sure that draw b of each object uses the same units. If each object has a different name for each unit, they compare the units. Before, they compared only the row numbers. Thus, two fits with different orders of the units gave wrong joint p-values without a message.</li>
+<li>If only some objects have valid unit names, draw b of all objects must have the same row numbers, and the functions give a warning. A valid name is not <code>NA</code>, and each unit has a different name. If no object has unit names, the functions compare the row numbers without a warning. The order of the objects does not change the result.</li>
+<li>A bootstrap draw of the global estimator now uses the same treated units as the fit. A treated unit must have a treated cell with an outcome. Before, a unit with <code>W = 1</code> but no treated outcome changed the weights of each draw, also in version 0.3.0. Thus, a draw with the rows of the data gave a different estimate.</li>
+<li>The global placebo cross-validation now uses the placebo sets that it draws. Before, with <code>placebo_size</code> more than 1, the C code read the units of the sets in the wrong order. Then a set sometimes had the same unit two times. This also occurred in version 0.3.0.</li>
+<li>In the global placebo cross-validation, a placebo unit is now a treated unit only if it has an outcome in the held-out periods. The fit on the data uses the same rule. Before, a placebo unit without such an outcome changed the weights. This also occurred in version 0.3.0.</li>
+<li>The mean of very large effects is now finite. The RMSE of the global placebo cross-validation is also finite for very large placebo effects. Before, the sums were sometimes infinite.</li>
 </ul></div>
 </div>
     <div class="section level2">

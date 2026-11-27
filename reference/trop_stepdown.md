@@ -11,6 +11,9 @@ estimates must have the same bootstrap draws.
 
 ``` r
 trop_stepdown(x)
+
+# S3 method for class 'trop_stepdown'
+print(x, digits = 4L, ...)
 ```
 
 ## Arguments
@@ -19,20 +22,27 @@ trop_stepdown(x)
 
   A `trop` object, a `trop_effects` object with a bootstrap, or a list
   of such objects. Use a named list to name the tests. All objects must
-  have the same bootstrap rows. To make them, give the same `boot_rows`
-  from
-  [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
-  to each
-  [`trop()`](https://farach.github.io/fasttrop/reference/trop.md) and
-  [`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
-  call.
+  have the same bootstrap draws. Refer to the section Joint draws. The
+  result of
+  [`trop_contrast()`](https://farach.github.io/fasttrop/reference/trop_contrast.md)
+  is also a `trop_effects` object.
+
+- digits:
+
+  The number of significant digits to show.
+
+- ...:
+
+  Not used.
 
 ## Value
 
-A data frame with one row for each estimate and with the columns `name`,
-`estimate`, `std.error`, `t`, `p_raw`, and `p_adj`. The column `p_raw`
-is the bootstrap p-value of one test, and `p_adj` is the adjusted
-p-value. An estimate with no standard error has no p-value.
+A data frame of class `trop_stepdown` with one row for each estimate and
+with the columns `name`, `estimate`, `std.error`, `t`, `p_raw`, and
+`p_adj`. The column `p_raw` is the bootstrap p-value of one test, and
+`p_adj` is the adjusted p-value. An estimate with no standard error has
+no p-value. The attribute `n_draws` is the number of draws that the
+function uses, and `n_boot` is the number of draws.
 
 ## Details
 
@@ -44,12 +54,37 @@ the standard errors. The function sorts the estimates by \\\|t\|\\. In
 each step, it compares \\\|t\|\\ with the largest statistic of the draws
 over the estimates that remain.
 
-The p-value is (1 + the number of draws with a larger value) / (the
-number of draws + 1). An adjusted p-value is never smaller than the
-adjusted p-value of an estimate with a larger \\\|t\|\\.
+The p-value is (1 + the number of draws with a value that is equal or
+larger) / (the number of draws + 1). An adjusted p-value is never
+smaller than the adjusted p-value of an estimate with a larger
+\\\|t\|\\.
 
-The function uses only the draws that have a value for all estimates.
-The result is not exact if the number of draws is small.
+The function uses only the draws that have a value for all estimates. It
+gives a warning message if some draws do not have a value for all
+estimates. The print method shows the number of draws that it uses. The
+result is not exact if the number of draws is small.
+
+## Joint draws
+
+Draw b of each object must use the same units. Give the same `boot_rows`
+from
+[`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md)
+to each [`trop()`](https://farach.github.io/fasttrop/reference/trop.md)
+and
+[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+call. Use the same order of the units in each panel.
+
+If each object has valid unit names, the function compares the units of
+each draw. A valid name is not `NA`, and each unit has a different name.
+A fit of [`trop()`](https://farach.github.io/fasttrop/reference/trop.md)
+always has valid names. A fit of
+[`trop_matrix()`](https://farach.github.io/fasttrop/reference/trop_matrix.md)
+has the row names of `Y`. If no object has unit names, the function
+compares only the row numbers.
+
+If only some objects have valid names, draw b of all objects must have
+the same row numbers. The objects with valid names must also have the
+same units. Then the function gives a warning.
 
 ## References
 
@@ -59,7 +94,8 @@ Formalized Data Snooping. *Econometrica*, 73(4), 1237-1282.
 ## See also
 
 [`trop_boot_rows()`](https://farach.github.io/fasttrop/reference/trop_boot_rows.md),
-[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md)
+[`trop_effects()`](https://farach.github.io/fasttrop/reference/trop_effects.md),
+[`trop_contrast()`](https://farach.github.io/fasttrop/reference/trop_contrast.md)
 
 ## Examples
 
@@ -72,8 +108,10 @@ fit <- trop(sim, "y", "d", "unit", "time",
             lambda = c(time = 0.2, unit = 0.5, nn = 0.5),
             boot_rows = rows, control = trop_control(threads = 1))
 trop_stepdown(trop_effects(fit, by = "event_time"))
-#>   name    estimate std.error           t      p_raw      p_adj
-#> 1    0  1.41712290 0.3612847  3.92245474 0.02439024 0.02439024
-#> 2    1  1.97684134 0.4881943  4.04929179 0.02439024 0.02439024
-#> 3    2 -0.03762763 0.3831373 -0.09820927 0.87804878 0.87804878
+#> Romano-Wolf stepdown p-values
+#>  name estimate std.error        t   p_raw   p_adj
+#>     0  1.41712    0.3613  3.92245 0.02439 0.02439
+#>     1  1.97684    0.4882  4.04929 0.02439 0.02439
+#>     2 -0.03763    0.3831 -0.09821 0.87805 0.87805
+#> Draws: 40 of 40 have a value for all estimates. The p-values use these draws.
 ```

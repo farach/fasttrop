@@ -13,7 +13,7 @@ bootstrap standard errors, intervals, and simultaneous bands for all groups."><m
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -27,6 +27,7 @@ bootstrap standard errors, intervals, and simultaneous bands for all groups."><m
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -82,14 +83,24 @@ bootstrap standard errors, intervals, and simultaneous bands for all groups.</p>
 <span>  conf_level <span class="op">=</span> <span class="va">fit</span><span class="op">$</span><span class="va">conf.level</span>,</span>
 <span>  ci <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"normal"</span>, <span class="st">"percentile"</span><span class="op">)</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  anticipation <span class="op">=</span> <span class="fl">0L</span></span>
+<span>  anticipation <span class="op">=</span> <span class="fl">0L</span>,</span>
+<span>  weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cell"</span>, <span class="st">"unit"</span><span class="op">)</span>,</span>
+<span>  unit_weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  checkpoint <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'trop_effects'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">x</span>, digits <span class="op">=</span> <span class="fl">4L</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'trop_effects'</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">x</span>, row.names <span class="op">=</span> <span class="cn">NULL</span>, optional <span class="op">=</span> <span class="cn">FALSE</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">x</span>, row.names <span class="op">=</span> <span class="cn">NULL</span>, optional <span class="op">=</span> <span class="cn">FALSE</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'trop_effects'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'trop_effects'</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -146,6 +157,26 @@ that come before the true start. Refer to the section Anticipation. The
 default 0 uses the first treated period as the start.</p></dd>
 
 
+<dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
+<dd><p>Use <code>"cell"</code> or <code>"unit"</code>. Refer to the section Weights.</p></dd>
+
+
+<dt id="arg-unit-weights">unit_weights<a class="anchor" aria-label="anchor" href="#arg-unit-weights"></a></dt>
+<dd><p>An optional numeric vector with one weight of 0 or more
+for each unit. A named vector must have a value for each unit name of the
+fit. A vector without names must be in the order of the rows of the panel.</p></dd>
+
+
+<dt id="arg-checkpoint">checkpoint<a class="anchor" aria-label="anchor" href="#arg-checkpoint"></a></dt>
+<dd><p>An optional path of a file for the bootstrap draws. Refer
+to the section Long runs.</p></dd>
+
+
+<dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
+<dd><p>Logical. If <code>TRUE</code>, the function shows the progress of the
+bootstrap.</p></dd>
+
+
 <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>A <code>trop_effects</code> object.</p></dd>
 
@@ -161,24 +192,33 @@ default 0 uses the first treated period as the start.</p></dd>
 <dt id="arg-row-names-optional">row.names, optional<a class="anchor" aria-label="anchor" href="#arg-row-names-optional"></a></dt>
 <dd><p>Not used.</p></dd>
 
+
+<dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
+<dd><p>A <code>trop_effects</code> object.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A data frame of class <code>trop_effects</code> with one row for each group.
 The columns are the group (the name of the column is the value of <code>by</code>),
-<code>estimate</code>, and <code>n_cells</code>. With a bootstrap, the columns <code>std.error</code>,
-<code>conf.low</code>, <code>conf.high</code>, <code>band.low</code>, and <code>band.high</code> are also in the data
-frame. The data frame has these attributes: <code>draws</code> (a matrix with one
-column for each group), <code>rows</code> (the rows of the draws), and <code>critical</code> (the
-critical value of the band). When <code>by</code> is a list, the result is a named
-list of such data frames.</p>
+<code>estimate</code>, <code>n_cells</code>, and <code>n_units</code>. With a bootstrap, the columns
+<code>std.error</code>, <code>conf.low</code>, <code>conf.high</code>, <code>band.low</code>, <code>band.high</code>, and
+<code>n_draws</code> are also in the data frame. The data frame has these attributes:
+<code>draws</code> (a matrix with one column for each group), <code>rows</code> (the rows of the
+draws), <code>critical</code> (the critical value of the band), <code>n_complete</code> (the
+number of draws with a value for all groups), <code>diagnostics</code>, and <code>units</code>
+(the names of the units of the fit). When <code>by</code> is a list, the result is a
+named list of such data frames.</p>
+<p><code><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef()</a></code> gives the estimates with the group names. <code><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov()</a></code> gives the
+covariance matrix of the draws, from the draws with a value for all groups.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The function uses the effects <code>tau</code> of the fit. Thus, the target cells of the
 fit are the only cells in the groups. A cell that has no effect in the fit,
 for example a cell outside of the target, is not in a group. A group with no
-such cell is not in the result.</p>
+such cell is not in the result. Use <code><a href="trop_cells.html">trop_cells()</a></code> to count the cells of
+each group before you calculate the bootstrap.</p>
     </div>
     <div class="section level2">
     <h2 id="groups">Groups<a class="anchor" aria-label="anchor" href="#groups"></a></h2>
@@ -218,7 +258,36 @@ the event time 0 is the true start. The cohort is also the period of the
 true start. A cohort that starts after the last period of the panel is not
 in a group.</p>
 <p>To keep the anticipation cells out of the estimate, also remove
-them from the <code>target</code> of the fit.</p>
+them from the <code>target</code> of the fit. Use <code><a href="trop_rollout.html">trop_rollout()</a></code> to make <code>W</code> and
+<code>target</code> from the start dates.</p>
+<p>The function finds the start of each run from <code>W</code>. If a run starts in the
+first period of the panel, its anticipation periods can be before the panel.
+Then the event times of the run can be wrong, and the function gives a
+warning message. If the fit has event times from the argument <code>event_time</code>
+of <code><a href="trop.html">trop()</a></code>, the function uses them. Then <code>anticipation</code> must be 0. Refer to
+the section Event times of <code><a href="trop.html">trop()</a></code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="weights">Weights<a class="anchor" aria-label="anchor" href="#weights"></a></h2>
+
+
+<p>By default, each cell in a group has the same weight. Thus, a unit with more
+cells in a group has more weight in the group. With <code>weights = "unit"</code>, each
+unit has the same total weight in each group. The function divides the
+weight of a unit by its number of cells in the group.</p>
+<p>The weights are relative. In each group, the function divides the weights
+by the largest weight of the units of that group. Thus, the estimate of a
+group does not depend on the weights of other units. In a group, the
+largest positive weight must be less than 1e200 times the smallest positive
+weight.</p>
+<p>With <code>unit_weights</code>, each unit has its own weight, for example its number of
+workers before the treatment. Use weights that the treatment cannot change.
+With <code>weights = "cell"</code>, each cell gets the weight of its unit. With
+<code>weights = "unit"</code>, the weight of a unit is its total weight in each group.
+A unit with a weight of 0 is not in a group.</p>
+<p>The bootstrap uses the same weights. A unit that a draw selects two times
+counts as two units in the draw. The ATT of the fit always gives the same
+weight to each cell.</p>
     </div>
     <div class="section level2">
     <h2 id="inference">Inference<a class="anchor" aria-label="anchor" href="#inference"></a></h2>
@@ -227,8 +296,9 @@ them from the <code>target</code> of the fit.</p>
 <p>The bootstrap uses the unit draws of the fit. For each draw, the function
 calculates the local estimator again with the tuning parameters of the fit.
 Then it averages the effects of each group. The tuning parameters do not
-change. The standard error of a group is the standard deviation of its draws.
-A group that has no treated cell in a draw has no value for that draw.</p>
+change. The standard error of a group is the standard deviation of its draws.</p>
+<p>A group that has no treated cell in a draw has no value for that draw. The
+column <code>n_draws</code> gives the number of draws with a value for each group.</p>
 <p>The draws run in parallel with the <code>threads</code> of the control of the fit.</p>
 <p>By default, the function uses the draws that the fit stored in <code>fit$boot$rows</code>.
 Then the average of all treated cells has the same draws as <code>fit$boot$draws</code>.
@@ -244,12 +314,55 @@ sup-t method. The band has a critical value for all groups. The critical
 value is a quantile of the largest absolute value of the standardized draws
 over the groups. The band contains all true group effects with the
 probability <code>conf_level</code>, if the bootstrap is correct.</p>
+<p>The band uses only the draws with a value for all groups. The centers and
+the standard errors of the band also come from these draws. Thus, if some
+draws have no value for a group, the band and the interval of that group use
+different draws. If fewer than 2 draws have a value for all groups, the
+band is not available.</p>
 <p>The intervals <code>conf.low</code> and <code>conf.high</code> are for one group each. The band
 needs many draws. With only one group, the band columns are <code>NA</code>.</p>
     </div>
     <div class="section level2">
+    <h2 id="diagnostics">Diagnostics<a class="anchor" aria-label="anchor" href="#diagnostics"></a></h2>
+
+
+<p>The attribute <code>diagnostics</code> is a data frame with one row for each draw. Its
+columns count these cells and fits of the draw:</p><ul><li><p><code>n_used</code>: the treated cells with an effect.</p></li>
+<li><p><code>n_skipped</code>: the cells that the untreated cells do not identify.</p></li>
+<li><p><code>n_nonconverged</code>: the fits that did not converge.</p></li>
+<li><p><code>n_failed</code>: the fits that failed. A fit fails if the singular value
+decomposition fails or if the result is not finite.</p></li>
+<li><p><code>n_dropped</code>: the cells that have an effect in the fit, but that the
+untreated cells of the draw do not identify. The count does not include
+the fits that failed.</p></li>
+</ul><p>The function gives a warning message when a draw has such fits or cells.
+It also gives a warning message for a group with fewer than 2 draws with a
+value. The print method shows these counts.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="long-runs">Long runs<a class="anchor" aria-label="anchor" href="#long-runs"></a></h2>
+
+
+<p>With <code>progress = TRUE</code>, the function shows the number of draws that are
+done and an estimate of the time that is left. With <code>checkpoint</code>, the
+function saves the draws to a file after each block of draws. If the
+calculation stops, call the function again with the same arguments and the
+same file. The function then calculates only the draws that are not in the
+file. The results are equal to the results of one run without a stop.</p>
+<p>The file has a fingerprint of the calculation. The fingerprint uses the
+panel, the tuning parameters, the solver settings, the draw rows, the groups,
+the weights, and the version of fasttrop. If the fingerprint of the file is
+different, the function stops with an error and does not change the file.
+The number of threads is not in the fingerprint, because it does not change
+the results.</p>
+<p>The file is an RDS file with the draws, but not the panel. Keep it in a
+folder on your computer. The function makes sure that it can write to the
+folder before it starts the bootstrap.</p>
+    </div>
+    <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="trop_boot_rows.html">trop_boot_rows()</a></code>, <code><a href="trop_stepdown.html">trop_stepdown()</a></code></p></div>
+    <div class="dont-index"><p><code><a href="trop_cells.html">trop_cells()</a></code>, <code><a href="trop_contrast.html">trop_contrast()</a></code>, <code><a href="trop_boot_rows.html">trop_boot_rows()</a></code>,
+<code><a href="trop_stepdown.html">trop_stepdown()</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -261,22 +374,29 @@ needs many draws. With only one group, the band columns are <code>NA</code>.</p>
 <span class="r-in"><span>            n_boot <span class="op">=</span> <span class="fl">50</span>, seed <span class="op">=</span> <span class="fl">1</span>, control <span class="op">=</span> <span class="fu"><a href="trop_control.html">trop_control</a></span><span class="op">(</span>threads <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">trop_effects</span><span class="op">(</span><span class="va">fit</span>, by <span class="op">=</span> <span class="st">"event_time"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> TROP effects by event time</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  event_time estimate n_cells std.error conf.low conf.high band.low band.high</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           0  1.41712       5    0.3535   0.7243     2.110   0.6428    2.1914</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           1  1.97684       5    0.4643   1.0669     2.887   0.9599    2.9938</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           2 -0.03763       5    0.3825  -0.7873     0.712  -0.8755    0.8002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Bootstrap: 50 draws. The band is simultaneous (sup-t) at the 95% level.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Weights: each cell has the same weight.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  event_time estimate n_cells n_units std.error conf.low conf.high band.low</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           0  1.41712       5       5    0.3535   0.7243     2.110   0.6428</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           1  1.97684       5       5    0.4643   1.0669     2.887   0.9599</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           2 -0.03763       5       5    0.3825  -0.7873     0.712  -0.8755</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  band.high n_draws</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     2.1914      50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     2.9938      50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     0.8002      50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Bootstrap: 50 draws. The band is simultaneous (sup-t) at the 95% level. It uses the 50 draws with a value for all rows.</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Two sets of groups with one bootstrap sweep.</span></span></span>
 <span class="r-in"><span><span class="va">both</span> <span class="op">&lt;-</span> <span class="fu">trop_effects</span><span class="op">(</span><span class="va">fit</span>, by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>event <span class="op">=</span> <span class="st">"event_time"</span>, time <span class="op">=</span> <span class="st">"time"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="trop_stepdown.html">trop_stepdown</a></span><span class="op">(</span><span class="va">both</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       name    estimate std.error          t      p_raw      p_adj</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 event: 0  1.41712290 0.3534799  4.0090621 0.01960784 0.01960784</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 event: 1  1.97684134 0.4642597  4.2580507 0.01960784 0.01960784</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 event: 2 -0.03762763 0.3824907 -0.0983753 0.90196078 0.90196078</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 time: 10  1.41712290 0.3534799  4.0090621 0.01960784 0.01960784</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5 time: 11  1.97684134 0.4642597  4.2580507 0.01960784 0.01960784</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6 time: 12 -0.03762763 0.3824907 -0.0983753 0.90196078 0.90196078</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Romano-Wolf stepdown p-values</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      name estimate std.error        t   p_raw   p_adj</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  event: 0  1.41712    0.3535  4.00906 0.01961 0.01961</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  event: 1  1.97684    0.4643  4.25805 0.01961 0.01961</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  event: 2 -0.03763    0.3825 -0.09838 0.90196 0.90196</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  time: 10  1.41712    0.3535  4.00906 0.01961 0.01961</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  time: 11  1.97684    0.4643  4.25805 0.01961 0.01961</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  time: 12 -0.03763    0.3825 -0.09838 0.90196 0.90196</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Draws: 50 of 50 have a value for all estimates. The p-values use these draws.</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

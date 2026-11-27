@@ -110,6 +110,10 @@ explains each step and the output.
   group and many
   tests](https://farach.github.io/fasttrop/articles/event-studies.md).
   The example shows how to read the band for all event times.
+- For a study with start dates, many groups, and a long bootstrap, use
+  [Plan, run, and examine a large
+  study](https://farach.github.io/fasttrop/articles/large-studies.md).
+  It shows how to count the cells before you see the results.
 - If the fit reports a value at the edge of the grid, use [Choose a
   tuning
   grid](https://farach.github.io/fasttrop/articles/tuning-grid.md). It

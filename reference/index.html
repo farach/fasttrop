@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,6 +21,7 @@
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -94,9 +95,9 @@
         </dt>
         <dd>Methods for <code>trop</code> objects</dd>
       </dl></div><div class="section level2">
-      <h2 id="group-effects-and-many-tests">Group effects and many tests<a class="anchor" aria-label="anchor" href="#group-effects-and-many-tests"></a></h2>
+      <h2 id="plan-a-study">Plan a study<a class="anchor" aria-label="anchor" href="#plan-a-study"></a></h2>
 
-      <div class="section-desc"><p>Get the effect of groups of cells and adjust the p-values of many tests.</p></div>
+      <div class="section-desc"><p>Make the treatment and the target from start dates, and count the cells of each group.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -105,14 +106,44 @@
 
       <dl><dt>
 
-          <code><a href="trop_effects.html">trop_effects()</a></code> <code><a href="trop_effects.html">print(<i>&lt;trop_effects&gt;</i>)</a></code> <code><a href="trop_effects.html">as.data.frame(<i>&lt;trop_effects&gt;</i>)</a></code>
+          <code><a href="trop_rollout.html">trop_rollout()</a></code>
+
+        </dt>
+        <dd>Make the treatment and the target from start dates</dd>
+
+        <dt>
+
+          <code><a href="trop_cells.html">trop_cells()</a></code> <code><a href="trop_cells.html">print(<i>&lt;trop_cells&gt;</i>)</a></code>
+
+        </dt>
+        <dd>Count the cells of each group before the bootstrap</dd>
+      </dl></div><div class="section level2">
+      <h2 id="group-effects-and-many-tests">Group effects and many tests<a class="anchor" aria-label="anchor" href="#group-effects-and-many-tests"></a></h2>
+
+      <div class="section-desc"><p>Get the effect of groups of cells, combine the effects, and adjust the p-values of many tests.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="trop_effects.html">trop_effects()</a></code> <code><a href="trop_effects.html">print(<i>&lt;trop_effects&gt;</i>)</a></code> <code><a href="trop_effects.html">as.data.frame(<i>&lt;trop_effects&gt;</i>)</a></code> <code><a href="trop_effects.html">coef(<i>&lt;trop_effects&gt;</i>)</a></code> <code><a href="trop_effects.html">vcov(<i>&lt;trop_effects&gt;</i>)</a></code>
 
         </dt>
         <dd>Effects by event time, cohort, period, or unit</dd>
 
         <dt>
 
-          <code><a href="trop_stepdown.html">trop_stepdown()</a></code>
+          <code><a href="trop_contrast.html">trop_contrast()</a></code>
+
+        </dt>
+        <dd>Linear combinations of group effects</dd>
+
+        <dt>
+
+          <code><a href="trop_stepdown.html">trop_stepdown()</a></code> <code><a href="trop_stepdown.html">print(<i>&lt;trop_stepdown&gt;</i>)</a></code>
 
         </dt>
         <dd>Romano-Wolf stepdown p-values</dd>
@@ -123,6 +154,13 @@
 
         </dt>
         <dd>Make bootstrap rows</dd>
+
+        <dt>
+
+          <code><a href="trop_honest_inputs.html">trop_honest_inputs()</a></code>
+
+        </dt>
+        <dd>Inputs for a sensitivity analysis of pre-trends</dd>
       </dl></div><div class="section level2">
       <h2 id="settings">Settings<a class="anchor" aria-label="anchor" href="#settings"></a></h2>
 

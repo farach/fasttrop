@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">fasttrop</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,6 +48,7 @@
     <li><a class="dropdown-item" href="../articles/read-your-results.html">How to read your results</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">Use covariates</a></li>
     <li><a class="dropdown-item" href="../articles/event-studies.html">Effects by group and many tests</a></li>
+    <li><a class="dropdown-item" href="../articles/large-studies.html">Plan, run, and examine a large study</a></li>
     <li><a class="dropdown-item" href="../articles/tuning-grid.html">Choose a tuning grid</a></li>
     <li><a class="dropdown-item" href="../articles/limits.html">What TROP can and cannot do</a></li>
     <li><a class="dropdown-item" href="../articles/glossary.html">Glossary</a></li>
@@ -114,6 +115,9 @@ estimate. Use it when the treatment is not complete in those cells.</li>
 <li>Use <code><a href="../reference/trop_boot_rows.html">trop_boot_rows()</a></code> to draw the same units for all
 tests. Use <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> to adjust the p-values.</li>
 <li>This article uses practice data. The data have a known effect.</li>
+<li>For a full study, read <a href="large-studies.html">Plan, run, and
+examine a large study</a>. It shows start dates, counts of cells,
+weights, checkpoints, diagnostics, and contrasts.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -163,17 +167,27 @@ matrix with one group number for each cell.</p>
 <code class="sourceCode R"><span><span class="va">ev</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trop_effects.html">trop_effects</a></span><span class="op">(</span><span class="va">fit</span>, by <span class="op">=</span> <span class="st">"event_time"</span><span class="op">)</span></span>
 <span><span class="va">ev</span></span>
 <span><span class="co">#&gt; TROP effects by event time</span></span>
-<span><span class="co">#&gt;  event_time estimate n_cells std.error conf.low conf.high band.low band.high</span></span>
-<span><span class="co">#&gt;           0   1.2331      12    0.3824   0.4836     1.983  0.27808     2.188</span></span>
-<span><span class="co">#&gt;           1   1.5221       8    0.3752   0.7867     2.258  0.58494     2.459</span></span>
-<span><span class="co">#&gt;           2   1.2890       7    0.2511   0.7970     1.781  0.66200     1.916</span></span>
-<span><span class="co">#&gt;           3   0.8586       6    0.1949   0.4767     1.241  0.37194     1.345</span></span>
-<span><span class="co">#&gt;           4   1.4251       4    0.5728   0.3024     2.548 -0.00547     2.856</span></span>
-<span><span class="co">#&gt; Bootstrap: 100 draws. The band is simultaneous (sup-t) at the 95% level.</span></span></code></pre></div>
+<span><span class="co">#&gt;   Weights: each cell has the same weight.</span></span>
+<span><span class="co">#&gt;  event_time estimate n_cells n_units std.error conf.low conf.high band.low</span></span>
+<span><span class="co">#&gt;           0   1.2331      12      12    0.3824   0.4836     1.983  0.27808</span></span>
+<span><span class="co">#&gt;           1   1.5221       8       8    0.3752   0.7867     2.258  0.58494</span></span>
+<span><span class="co">#&gt;           2   1.2890       7       7    0.2511   0.7970     1.781  0.66200</span></span>
+<span><span class="co">#&gt;           3   0.8586       6       6    0.1949   0.4767     1.241  0.37194</span></span>
+<span><span class="co">#&gt;           4   1.4251       4       4    0.5728   0.3024     2.548 -0.00547</span></span>
+<span><span class="co">#&gt;  band.high n_draws</span></span>
+<span><span class="co">#&gt;      2.188     100</span></span>
+<span><span class="co">#&gt;      2.459     100</span></span>
+<span><span class="co">#&gt;      1.916     100</span></span>
+<span><span class="co">#&gt;      1.345     100</span></span>
+<span><span class="co">#&gt;      2.856     100</span></span>
+<span><span class="co">#&gt; Bootstrap: 100 draws. The band is simultaneous (sup-t) at the 95% level. It uses the 100 draws with a value for all rows.</span></span></code></pre></div>
 <p>The estimate of a group is the mean of the effects of its cells. The
-column <code>n_cells</code> gives the number of cells. The function uses
-the bootstrap draws of the fit. Thus, the draws of all groups come from
-the same resamples of units. This is necessary for the band.</p>
+column <code>n_cells</code> gives the number of cells, and
+<code>n_units</code> gives the number of units. The column
+<code>n_draws</code> gives the number of draws with a value for the
+group. The function uses the bootstrap draws of the fit. Thus, the draws
+of all groups come from the same resamples of units. This is necessary
+for the band.</p>
 <p>Compare <code>n_cells</code> across the rows. Units that start
 treatment late can contribute to the first event time but not the
 last.</p>
@@ -248,30 +262,43 @@ without the treatment. Its true effect is 0.</p>
 <span></span>
 <span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trop_stepdown.html">trop_stepdown</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>effect <span class="op">=</span> <span class="va">fit_y</span>, no_effect <span class="op">=</span> <span class="va">fit_0</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">res</span></span>
-<span><span class="co">#&gt;        name  estimate std.error        t      p_raw      p_adj</span></span>
-<span><span class="co">#&gt; 1    effect 1.2662039 0.2642579 4.791547 0.00990099 0.00990099</span></span>
-<span><span class="co">#&gt; 2 no_effect 0.2662039 0.2642579 1.007364 0.27722772 0.27722772</span></span></code></pre></div>
+<span><span class="co">#&gt; Romano-Wolf stepdown p-values</span></span>
+<span><span class="co">#&gt;       name estimate std.error     t    p_raw    p_adj</span></span>
+<span><span class="co">#&gt;     effect   1.2662    0.2643 4.792 0.009901 0.009901</span></span>
+<span><span class="co">#&gt;  no_effect   0.2662    0.2643 1.007 0.277228 0.277228</span></span>
+<span><span class="co">#&gt; Draws: 100 of 100 have a value for all estimates. The p-values use these draws.</span></span></code></pre></div>
 <p>The column <code>p_raw</code> is the p-value of one test. The column
 <code>p_adj</code> is the adjusted p-value. An adjusted p-value is never
-smaller than the raw p-value. You can also give
-<code><a href="../reference/trop_effects.html">trop_effects()</a></code> objects, for example to test each event
-time. The objects must have the same bootstrap rows. If they do not, the
-function gives an error.</p>
+smaller than the raw p-value.</p>
+<p>You can also give <code><a href="../reference/trop_effects.html">trop_effects()</a></code> objects, for example to
+test each event time. Each draw of the objects must use the same units.
+Give the same <code>boot_rows</code> to each fit. If the objects have
+unit names, the function compares the units of each draw, and it gives
+an error if they are different.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ev_0</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trop_effects.html">trop_effects</a></span><span class="op">(</span><span class="va">fit_0</span>, by <span class="op">=</span> <span class="st">"event_time"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/trop_stepdown.html">trop_stepdown</a></span><span class="op">(</span><span class="va">ev_0</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   name   estimate std.error          t     p_raw     p_adj</span></span>
-<span><span class="co">#&gt; 1    0  0.2331260 0.4445835  0.5243695 0.6060606 0.8888889</span></span>
-<span><span class="co">#&gt; 2    1  0.5221123 0.3670260  1.4225484 0.1818182 0.4545455</span></span>
-<span><span class="co">#&gt; 3    2  0.2890341 0.3153513  0.9165463 0.2424242 0.7373737</span></span>
-<span><span class="co">#&gt; 4    3 -0.1413875 0.2302258 -0.6141254 0.4343434 0.8888889</span></span>
-<span><span class="co">#&gt; 5    4  0.4250548 0.6535067  0.6504215 0.4949495 0.8888889</span></span></code></pre></div>
+<span><span class="co">#&gt; Warning: 2 of 100 draws do not have a value for all estimates. The stepdown</span></span>
+<span><span class="co">#&gt; uses the other 98 draws.</span></span>
+<span><span class="co">#&gt; Romano-Wolf stepdown p-values</span></span>
+<span><span class="co">#&gt;  name estimate std.error       t  p_raw  p_adj</span></span>
+<span><span class="co">#&gt;     0   0.2331    0.4446  0.5244 0.6061 0.8889</span></span>
+<span><span class="co">#&gt;     1   0.5221    0.3670  1.4225 0.1818 0.4545</span></span>
+<span><span class="co">#&gt;     2   0.2890    0.3154  0.9165 0.2424 0.7374</span></span>
+<span><span class="co">#&gt;     3  -0.1414    0.2302 -0.6141 0.4343 0.8889</span></span>
+<span><span class="co">#&gt;     4   0.4251    0.6535  0.6504 0.4949 0.8889</span></span>
+<span><span class="co">#&gt; Draws: 98 of 100 have a value for all estimates. The p-values use these draws.</span></span></code></pre></div>
 <p>With <code>strata</code>, <code><a href="../reference/trop_boot_rows.html">trop_boot_rows()</a></code> resamples the
 units inside groups that you define, for example the waves of a rollout.
 Each draw keeps the number of treated units and the number of untreated
 units in each group. The argument <code>resample = "controls"</code>
 keeps the treated units fixed and resamples only the untreated
 units.</p>
+<p>With the cohort of each unit as <code>strata</code>, each draw has
+the same number of units of each cohort as the data. Give the units that
+are never treated their own stratum. A group can still have no value in
+a draw if the untreated units of the draw do not identify its cells. A
+cohort with few units has little variation in such draws.</p>
 </div>
 <div class="section level2">
 <h2 id="anticipation-and-many-sets-of-groups">Anticipation and many sets of groups<a class="anchor" aria-label="anchor" href="#anticipation-and-many-sets-of-groups"></a>
@@ -279,19 +306,28 @@ units.</p>
 <p>If units change before the start of the treatment, set the
 anticipation periods to <code>W = 1</code>. Then remove them from
 <code>target</code>. Thus, the fit does not use them as controls and
-does not include them in the estimate. Then give the number of
-anticipation periods to <code><a href="../reference/trop_effects.html">trop_effects()</a></code> with
-<code>anticipation</code>. Event time 0 is then the first period after
-the anticipation periods, and these periods get negative event
-times.</p>
+does not include them in the estimate. <code><a href="../reference/trop_rollout.html">trop_rollout()</a></code> makes
+these columns and the event time of each row from the start dates.</p>
+<p>Give the event times to <code><a href="../reference/trop.html">trop()</a></code> with
+<code>event_time</code>. Then <code><a href="../reference/trop_effects.html">trop_effects()</a></code> and
+<code><a href="../reference/trop_cells.html">trop_cells()</a></code> use them. Event time 0 is the true start, and
+the anticipation periods get negative event times. Without
+<code>event_time</code>, give the number of anticipation periods to
+<code><a href="../reference/trop_effects.html">trop_effects()</a></code> with <code>anticipation</code>. This method
+works only if the panel has a row for the first treated period of each
+run. Refer to <a href="large-studies.html">Plan, run, and examine a
+large study</a>.</p>
 <p>A named list in <code>by</code> gives one result for each element
 from one set of draws. Give the list to <code><a href="../reference/trop_stepdown.html">trop_stepdown()</a></code> to
-adjust all the tests together.</p>
+adjust all the tests together. Use <code><a href="../reference/trop_cells.html">trop_cells()</a></code> to count
+the cells of each group before you calculate the bootstrap.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sets</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trop_effects.html">trop_effects</a></span><span class="op">(</span><span class="va">fit_0</span>, by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>event <span class="op">=</span> <span class="st">"event_time"</span>, cohort <span class="op">=</span> <span class="st">"cohort"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">sets</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "event"  "cohort"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/trop_stepdown.html">trop_stepdown</a></span><span class="op">(</span><span class="va">sets</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: 69 of 100 draws do not have a value for all estimates. The stepdown</span></span>
+<span><span class="co">#&gt; uses the other 31 draws.</span></span>
 <span><span class="co">#&gt; [1] 10</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -302,7 +338,7 @@ results. For a fit that uses cross-validation, see <a href="tuning-grid.html">Ch
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="va">package</span></span>
 <span><span class="co">#&gt; $version</span></span>
-<span><span class="co">#&gt; [1] "0.3.0"</span></span>
+<span><span class="co">#&gt; [1] "0.4.0"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $sha</span></span>
 <span><span class="co">#&gt; [1] NA</span></span></code></pre></div>

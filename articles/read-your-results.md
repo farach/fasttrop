@@ -33,10 +33,13 @@ summary(fit)
 #>   ATT: 1.225  (SE 0.1945, 95% CI 0.8435 to 1.606)
 #>   lambda: time = 0, unit = 1, nn = 0.1
 #>   Tuning: loocv, score 99.73, 28 grid evaluations
-#>   Bootstrap: 200 draws (stratified), 0 failed, normal interval
-#>   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0
-#>   Time: 22.099 s in total, 22.083 s in the C code (4 threads)
-#>   fasttrop 0.3.0
+#>   Tuning score: uses 200 of 200 cells
+#>   Bootstrap: 200 draws (stratified), 0 without an estimate, normal interval
+#>   Bootstrap fits: all converged, and no fit failed
+#>   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0 | Failed fits: 0
+#>   Time: 22.222 s in total, 22.204 s in the C code (4 threads)
+#>   C time by step: tuning 12.868 s, estimate 0.047 s, bootstrap 9.289 s
+#>   fasttrop 0.4.0
 ```
 
 The first lines of the output give the method, the design, and the size

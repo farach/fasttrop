@@ -124,10 +124,13 @@ summary(fit_cv)
 #>   ATT: 1.142  (SE 0.2267, 95% CI 0.6978 to 1.587)
 #>   lambda: time = 0.1, unit = 0.5, nn = 1
 #>   Tuning: loocv, score 18.79, 34 grid evaluations
-#>   Bootstrap: 100 draws (stratified), 0 failed, normal interval
-#>   Treated units: 5 | Skipped cells: 0 | Non-converged fits: 0
-#>   Time: 1.161 s in total, 1.153 s in the C code (4 threads)
-#>   fasttrop 0.3.0
+#>   Tuning score: uses 60 of 60 cells
+#>   Bootstrap: 100 draws (stratified), 0 without an estimate, normal interval
+#>   Bootstrap fits: all converged, and no fit failed
+#>   Treated units: 5 | Skipped cells: 0 | Non-converged fits: 0 | Failed fits: 0
+#>   Time: 1.161 s in total, 1.152 s in the C code (4 threads)
+#>   C time by step: tuning 0.747 s, estimate 0.006 s, bootstrap 0.399 s
+#>   fasttrop 0.4.0
 ```
 
 The function [`summary()`](https://rdrr.io/r/base/summary.html) also
