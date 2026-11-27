@@ -159,6 +159,13 @@ trop_effects(fit, by = "event_time")
 The article "Effects by group and many tests" on the website gives an
 example with practice data.
 
+For a large study, `trop_rollout()` makes the treatment, the target, and the
+event times from start dates. Give the event times to `trop()` with
+`event_time`. `trop_cells()` counts the cells of each group before you see the
+results. With `checkpoint`, a long bootstrap of `trop_effects()` can continue
+after a stop. Each draw also has counts of the fits that did not converge or
+failed. The article "Plan, run, and examine a large study" shows these steps.
+
 ## Validation
 
 We compared fasttrop with two reference implementations at fixed commits. The
@@ -253,7 +260,7 @@ scripts and the saved results of the benchmarks.
 
 ## Limits
 
-These limits apply to version 0.3.0:
+These limits apply to version 0.4.0:
 
 - Theorem 5.1 of the paper (triple robustness) has a proof only for a block
   design. For other designs, fasttrop gives a warning message.
@@ -262,6 +269,10 @@ These limits apply to version 0.3.0:
 - The global method works only for a block design.
 - `trop_effects()` and `target` work only with the local method. The bootstrap
   of `trop_effects()` keeps the tuning parameters fixed.
+- Without `event_time`, `trop_effects()` finds the start of each treatment
+  run from the treatment. If the panel has no rows just before a start, the
+  event times of that run can be wrong. `trop()` gives a warning message in
+  this case.
 - With covariates, the weights do not remove a bias from a wrong covariate
   coefficient. The paper does not give one procedure to calculate the
   coefficients, and the global method with covariates is an extension of

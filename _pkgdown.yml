@@ -66,6 +66,8 @@ navbar:
         href: articles/covariates.html
       - text: Effects by group and many tests
         href: articles/event-studies.html
+      - text: Plan, run, and examine a large study
+        href: articles/large-studies.html
       - text: Choose a tuning grid
         href: articles/tuning-grid.html
       - text: What TROP can and cannot do
@@ -96,6 +98,7 @@ articles:
   - articles/read-your-results
   - articles/covariates
   - articles/event-studies
+  - articles/large-studies
   - articles/tuning-grid
   - articles/limits
 - title: The evidence
@@ -118,12 +121,19 @@ reference:
   desc: Show a fit and get its parts.
   contents:
   - trop-methods
+- title: Plan a study
+  desc: Make the treatment and the target from start dates, and count the cells of each group.
+  contents:
+  - trop_rollout
+  - trop_cells
 - title: Group effects and many tests
-  desc: Get the effect of groups of cells and adjust the p-values of many tests.
+  desc: Get the effect of groups of cells, combine the effects, and adjust the p-values of many tests.
   contents:
   - trop_effects
+  - trop_contrast
   - trop_stepdown
   - trop_boot_rows
+  - trop_honest_inputs
 - title: Settings
   desc: Set the solver options, the tuning grids, and the number of threads.
   contents:

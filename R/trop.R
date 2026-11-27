@@ -97,6 +97,55 @@
 #' weights of the units are different. They compare the shape of the outcome
 #' histories and not the level.
 #'
+#' @section Event times:
+#' [trop_effects()] and [trop_cells()] can make groups by event time and by
+#' cohort. By default, they find the start of each treatment run from `W`.
+#' The event time 0 is the first treated period of the run.
+#'
+#' With `event_time`, you give the event time of each treated cell. Then the
+#' groups use these values, and the cohort of a cell is the period with the
+#' event time 0. Use the column `event_time` of [trop_rollout()].
+#'
+#' The event time counts the periods of the panel. In a run of treated periods,
+#' it must increase by 1 from one period to the next. Thus, all cells of a run
+#' have the same cohort. A new run after an untreated period can have a
+#' different start. The function stops with an error if the event times do not
+#' agree with the runs of `W`.
+#'
+#' The periods of the panel are the values of `time` in `data`. If no unit has
+#' a row for a period, the panel does not have this period. Then make the
+#' event times from the same data, or add a row with an `NA` outcome for this
+#' period.
+#'
+#' Use `event_time` when the panel has no row for the start of a run. Also use
+#' it when the anticipation periods start before the first period of the
+#' panel. With `event_time`, do not give `anticipation` to [trop_effects()] and
+#' [trop_cells()]. The event times already count the anticipation periods.
+#'
+#' A cell without a row has no outcome. In `trop()`, such a cell gets the
+#' treatment of its unit in the rows before and after it. Thus, a period
+#' without a row does not stop a treatment run. With `event_time`, the
+#' treated rows after the cell can show that their run starts after the cell.
+#' Then the cell gets `W = 0`, and a new run starts after it.
+#'
+#' If the data have no rows just before the first treated row of a run, the
+#' start of the run is not certain. Then the function gives a warning message,
+#' unless you give `event_time`.
+#'
+#' @section Cross-validation scores:
+#' The element `cv$trace` has one row for each tuning value that the search
+#' examined. The column `score` is the criterion. The column `n_valid` counts
+#' the cells in the score. For the local method, these are the held-out
+#' untreated cells with a prediction. For the global method, these are the
+#' placebo cells with an effect. The element `cv$n_cells` is the number of
+#' all such cells.
+#'
+#' A score that uses fewer cells is not comparable. Thus, the search first
+#' prefers the tuning values with the largest `n_valid`. With the same
+#' `n_valid`, the smaller score is better. The function gives a warning if
+#' the chosen values do not use all cells. If no tuning value has a usable
+#' score, the function stops with an error.
+#'
 #' @section Limits of the triple robustness result:
 #' Theorem 5.1 of the paper gives a bound for the bias. The bound is the product
 #' of three terms: the unit imbalance, the time imbalance, and the bias of the
@@ -206,6 +255,10 @@
 #' @param demean Logical. If `TRUE`, the function subtracts the mean of the
 #'   untreated outcomes of each unit before it fits the model. Refer to the
 #'   section Tuning grid.
+#' @param event_time An optional name of a numeric column with the event time
+#'   of each row. Each treated row with an outcome must have a value. Refer to
+#'   the section Event times. [trop_matrix()] takes a numeric matrix with the
+#'   dimensions of `W`.
 #'
 #' @return An object of class `trop`. It is a list with these elements and with
 #'   other elements:
@@ -216,10 +269,11 @@
 #'   * `lambda`: the tuning parameters.
 #'   * `cv`: the results of the cross-validation, or `NULL` for fixed tuning
 #'     parameters. The element `cv$boundary` names the tuning values that are
-#'     at the edge of the grid.
-#'   * `boot`: the bootstrap draws in `draws`, the number of failed draws in
-#'     `n_failed`, the kind of draws in `resample`, and the draw rows in
-#'     `rows`.
+#'     at the edge of the grid. Refer to the section Cross-validation scores.
+#'   * `boot`: the bootstrap draws in `draws`, the kind of draws in
+#'     `resample`, and the draw rows in `rows`. The element `n_failed` is the
+#'     number of draws without an estimate. The element `diagnostics` has the
+#'     counts of each draw.
 #'   * `n_excluded_cells`: the number of treated cells that are not in the
 #'     target.
 #'   * `covariates`: `NULL` without covariates. Otherwise, a list with the
@@ -249,16 +303,23 @@ trop <- function(data, outcome, treatment, unit, time,
                  resample = c("stratified", "controls"), conf_level = 0.95,
                  ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
                  covariates = NULL, covariate_method = c("joint", "residualize"),
-                 target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE) {
+                 target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE,
+                 event_time = NULL) {
   t0 <- Sys.time()
   pm <- panel_matrices(data, outcome, treatment, unit, time, covariates,
-                       target = target, strata = strata)
+                       target = target, strata = strata, event_time = event_time)
+  if (length(pm$ambiguous) > 0L && is.null(event_time)) {
+    warning(sprintf("For %d unit(s), the data have no rows for the periods just before the first treated row of a run. Thus, the start of these runs is not certain, and the function uses the first treated row. For correct event times, give `event_time`, or add rows with an NA outcome. Units: %s.",
+                    length(pm$ambiguous), paste(utils::head(pm$ambiguous, 5L), collapse = ", ")),
+            call. = FALSE)
+  }
   fit <- trop_matrix(pm$Y, pm$W, method = method, lambda = lambda, grid = grid,
                      cv_cells = cv_cells, n_placebo = n_placebo, placebo_size = placebo_size,
                      max_cycles = max_cycles, se = se, n_boot = n_boot, resample = resample,
                      conf_level = conf_level, ci = ci, control = control, seed = seed,
                      X = pm$X, covariate_method = covariate_method, target = pm$target,
-                     strata = pm$strata, boot_rows = boot_rows, demean = demean)
+                     strata = pm$strata, boot_rows = boot_rows, demean = demean,
+                     event_time = pm$event)
   fit$units <- pm$units
   fit$times <- pm$times
   fit$call <- match.call()

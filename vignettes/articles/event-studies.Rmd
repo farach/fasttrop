@@ -23,6 +23,9 @@ Key points
 - Use `trop_boot_rows()` to draw the same units for all tests.
   Use `trop_stepdown()` to adjust the p-values.
 - This article uses practice data. The data have a known effect.
+- For a full study, read [Plan, run, and examine a large
+  study](large-studies.html). It shows start dates, counts of cells, weights,
+  checkpoints, diagnostics, and contrasts.
 :::
 
 ## A practice panel
@@ -65,8 +68,9 @@ ev
 ```
 
 The estimate of a group is the mean of the effects of its cells. The column
-`n_cells` gives the number of cells. The function uses the bootstrap draws of
-the fit. Thus, the draws of all groups come from the same resamples of units.
+`n_cells` gives the number of cells, and `n_units` gives the number of units.
+The column `n_draws` gives the number of draws with a value for the group. The
+function uses the bootstrap draws of the fit. Thus, the draws of all groups come from the same resamples of units.
 This is necessary for the band.
 
 Compare `n_cells` across the rows. Units that
@@ -147,9 +151,11 @@ res
 
 The column `p_raw` is the p-value of one test. The column `p_adj` is the
 adjusted p-value. An adjusted p-value is never smaller than the raw p-value.
+
 You can also give `trop_effects()` objects, for example to test each event
-time. The objects must have the same bootstrap rows. If they do not, the
-function gives an error.
+time. Each draw of the objects must use the same units. Give the same
+`boot_rows` to each fit. If the objects have unit names, the function compares
+the units of each draw, and it gives an error if they are different.
 
 ```{r stepdown-events}
 ev_0 <- trop_effects(fit_0, by = "event_time")
@@ -162,17 +168,31 @@ treated units and the number of untreated units in each group. The argument
 `resample = "controls"` keeps the treated units fixed and resamples only the
 untreated units.
 
+With the cohort of each unit as `strata`, each draw has the same number of
+units of each cohort as the data. Give the units that are never treated their
+own stratum. A group can still have no value in a draw if the untreated units
+of the draw do not identify its cells. A cohort with few units has little
+variation in such draws.
+
 ## Anticipation and many sets of groups
 
 If units change before the start of the treatment, set the anticipation
 periods to `W = 1`. Then remove them from `target`. Thus, the fit does not use
-them as controls and does not include them in the estimate. Then give the
-number of anticipation periods to `trop_effects()` with `anticipation`. Event
-time 0 is then the first period after the anticipation periods, and these
-periods get negative event times.
+them as controls and does not include them in the estimate. `trop_rollout()`
+makes these columns and the event time of each row from the start dates.
+
+Give the event times to `trop()` with `event_time`. Then `trop_effects()` and
+`trop_cells()` use them. Event time 0 is the true start, and the anticipation
+periods get negative event times. Without `event_time`, give the number of
+anticipation periods to `trop_effects()` with `anticipation`. This method
+works only if the panel has a row for the first treated period of each run.
+Refer to
+[Plan, run, and examine a large study](large-studies.html).
 
 A named list in `by` gives one result for each element from one set of draws.
-Give the list to `trop_stepdown()` to adjust all the tests together.
+Give the list to `trop_stepdown()` to adjust all the tests together. Use
+`trop_cells()` to count the cells of each group before you calculate the
+bootstrap.
 
 ```{r list-by}
 sets <- trop_effects(fit_0, by = list(event = "event_time", cohort = "cohort"))

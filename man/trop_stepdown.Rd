@@ -2,21 +2,30 @@
 % Please edit documentation in R/effects.R
 \name{trop_stepdown}
 \alias{trop_stepdown}
+\alias{print.trop_stepdown}
 \title{Romano-Wolf stepdown p-values}
 \usage{
 trop_stepdown(x)
+
+\method{print}{trop_stepdown}(x, digits = 4L, ...)
 }
 \arguments{
 \item{x}{A \code{trop} object, a \code{trop_effects} object with a bootstrap, or a list
 of such objects. Use a named list to name the tests. All objects must have
-the same bootstrap rows. To make them, give the same \code{boot_rows} from
-\code{\link[=trop_boot_rows]{trop_boot_rows()}} to each \code{\link[=trop]{trop()}} and \code{\link[=trop_effects]{trop_effects()}} call.}
+the same bootstrap draws. Refer to the section Joint draws. The result of
+\code{\link[=trop_contrast]{trop_contrast()}} is also a \code{trop_effects} object.}
+
+\item{digits}{The number of significant digits to show.}
+
+\item{...}{Not used.}
 }
 \value{
-A data frame with one row for each estimate and with the columns
-\code{name}, \code{estimate}, \code{std.error}, \code{t}, \code{p_raw}, and \code{p_adj}. The column
-\code{p_raw} is the bootstrap p-value of one test, and \code{p_adj} is the adjusted
-p-value. An estimate with no standard error has no p-value.
+A data frame of class \code{trop_stepdown} with one row for each estimate
+and with the columns \code{name}, \code{estimate}, \code{std.error}, \code{t}, \code{p_raw}, and
+\code{p_adj}. The column \code{p_raw} is the bootstrap p-value of one test, and
+\code{p_adj} is the adjusted p-value. An estimate with no standard error has no
+p-value. The attribute \code{n_draws} is the number of draws that the function
+uses, and \code{n_boot} is the number of draws.
 }
 \description{
 \code{trop_stepdown()} adjusts the p-values of many tests for multiple testing.
@@ -34,13 +43,32 @@ absolute values of the centered draws divided by the standard errors. The
 function sorts the estimates by \eqn{|t|}. In each step, it compares \eqn{|t|}
 with the largest statistic of the draws over the estimates that remain.
 
-The p-value is (1 + the number of draws with a larger value) / (the number of
-draws + 1). An adjusted p-value is never smaller than the adjusted p-value of
-an estimate with a larger \eqn{|t|}.
+The p-value is (1 + the number of draws with a value that is equal or
+larger) / (the number of draws + 1). An adjusted p-value is never smaller
+than the adjusted p-value of an estimate with a larger \eqn{|t|}.
 
-The function uses only the draws that have a value for all estimates. The
+The function uses only the draws that have a value for all estimates. It
+gives a warning message if some draws do not have a value for all
+estimates. The print method shows the number of draws that it uses. The
 result is not exact if the number of draws is small.
 }
+\section{Joint draws}{
+
+Draw b of each object must use the same units. Give the same \code{boot_rows}
+from \code{\link[=trop_boot_rows]{trop_boot_rows()}} to each \code{\link[=trop]{trop()}} and \code{\link[=trop_effects]{trop_effects()}} call. Use the
+same order of the units in each panel.
+
+If each object has valid unit names, the function compares the units of
+each draw. A valid name is not \code{NA}, and each unit has a different name. A
+fit of \code{\link[=trop]{trop()}} always has valid names. A fit of \code{\link[=trop_matrix]{trop_matrix()}} has the row
+names of \code{Y}. If no object has unit names, the function compares only the
+row numbers.
+
+If only some objects have valid names, draw b of all objects must have the
+same row numbers. The objects with valid names must also have the same
+units. Then the function gives a warning.
+}
+
 \examples{
 sim <- trop_simulate(n_units = 20, n_periods = 12, n_treated = 5,
                      n_post = 3, effect = 1, seed = 1)
@@ -56,5 +84,5 @@ Romano, J. P., and Wolf, M. (2005). Stepwise Multiple Testing as
 Formalized Data Snooping. \emph{Econometrica}, 73(4), 1237-1282.
 }
 \seealso{
-\code{\link[=trop_boot_rows]{trop_boot_rows()}}, \code{\link[=trop_effects]{trop_effects()}}
+\code{\link[=trop_boot_rows]{trop_boot_rows()}}, \code{\link[=trop_effects]{trop_effects()}}, \code{\link[=trop_contrast]{trop_contrast()}}
 }

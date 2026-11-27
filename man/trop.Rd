@@ -29,7 +29,8 @@ trop(
   target = NULL,
   strata = NULL,
   boot_rows = NULL,
-  demean = FALSE
+  demean = FALSE,
+  event_time = NULL
 )
 }
 \arguments{
@@ -102,6 +103,11 @@ and you cannot use \code{strata}.}
 \item{demean}{Logical. If \code{TRUE}, the function subtracts the mean of the
 untreated outcomes of each unit before it fits the model. Refer to the
 section Tuning grid.}
+
+\item{event_time}{An optional name of a numeric column with the event time
+of each row. Each treated row with an outcome must have a value. Refer to
+the section Event times. \code{\link[=trop_matrix]{trop_matrix()}} takes a numeric matrix with the
+dimensions of \code{W}.}
 }
 \value{
 An object of class \code{trop}. It is a list with these elements and with
@@ -114,10 +120,11 @@ and the confidence interval.
 \item \code{lambda}: the tuning parameters.
 \item \code{cv}: the results of the cross-validation, or \code{NULL} for fixed tuning
 parameters. The element \code{cv$boundary} names the tuning values that are
-at the edge of the grid.
-\item \code{boot}: the bootstrap draws in \code{draws}, the number of failed draws in
-\code{n_failed}, the kind of draws in \code{resample}, and the draw rows in
-\code{rows}.
+at the edge of the grid. Refer to the section Cross-validation scores.
+\item \code{boot}: the bootstrap draws in \code{draws}, the kind of draws in
+\code{resample}, and the draw rows in \code{rows}. The element \code{n_failed} is the
+number of draws without an estimate. The element \code{diagnostics} has the
+counts of each draw.
 \item \code{n_excluded_cells}: the number of treated cells that are not in the
 target.
 \item \code{covariates}: \code{NULL} without covariates. Otherwise, a list with the
@@ -239,6 +246,59 @@ between units. The unit effect absorbs a constant of a unit. Thus, with
 \code{unit = 0} the effects do not change. With a larger \code{unit} weight, the
 weights of the units are different. They compare the shape of the outcome
 histories and not the level.
+}
+
+\section{Event times}{
+
+\code{\link[=trop_effects]{trop_effects()}} and \code{\link[=trop_cells]{trop_cells()}} can make groups by event time and by
+cohort. By default, they find the start of each treatment run from \code{W}.
+The event time 0 is the first treated period of the run.
+
+With \code{event_time}, you give the event time of each treated cell. Then the
+groups use these values, and the cohort of a cell is the period with the
+event time 0. Use the column \code{event_time} of \code{\link[=trop_rollout]{trop_rollout()}}.
+
+The event time counts the periods of the panel. In a run of treated periods,
+it must increase by 1 from one period to the next. Thus, all cells of a run
+have the same cohort. A new run after an untreated period can have a
+different start. The function stops with an error if the event times do not
+agree with the runs of \code{W}.
+
+The periods of the panel are the values of \code{time} in \code{data}. If no unit has
+a row for a period, the panel does not have this period. Then make the
+event times from the same data, or add a row with an \code{NA} outcome for this
+period.
+
+Use \code{event_time} when the panel has no row for the start of a run. Also use
+it when the anticipation periods start before the first period of the
+panel. With \code{event_time}, do not give \code{anticipation} to \code{\link[=trop_effects]{trop_effects()}} and
+\code{\link[=trop_cells]{trop_cells()}}. The event times already count the anticipation periods.
+
+A cell without a row has no outcome. In \code{trop()}, such a cell gets the
+treatment of its unit in the rows before and after it. Thus, a period
+without a row does not stop a treatment run. With \code{event_time}, the
+treated rows after the cell can show that their run starts after the cell.
+Then the cell gets \code{W = 0}, and a new run starts after it.
+
+If the data have no rows just before the first treated row of a run, the
+start of the run is not certain. Then the function gives a warning message,
+unless you give \code{event_time}.
+}
+
+\section{Cross-validation scores}{
+
+The element \code{cv$trace} has one row for each tuning value that the search
+examined. The column \code{score} is the criterion. The column \code{n_valid} counts
+the cells in the score. For the local method, these are the held-out
+untreated cells with a prediction. For the global method, these are the
+placebo cells with an effect. The element \code{cv$n_cells} is the number of
+all such cells.
+
+A score that uses fewer cells is not comparable. Thus, the search first
+prefers the tuning values with the largest \code{n_valid}. With the same
+\code{n_valid}, the smaller score is better. The function gives a warning if
+the chosen values do not use all cells. If no tuning value has a usable
+score, the function stops with an error.
 }
 
 \section{Limits of the triple robustness result}{

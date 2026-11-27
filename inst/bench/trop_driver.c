@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
   if (rd_i() != 0x54524F50) { fprintf(stderr, "bad magic\n"); return 1; }
   int N = rd_i(), T = rd_i(), method = rd_i(), k = rd_i();
   trop_opts o;
+  o.fault = 0;
   o.threads = rd_i(); o.max_iter = rd_i(); o.max_inner = rd_i(); o.solver = rd_i();
   o.warm = rd_i();
   int max_cycles = rd_i();
@@ -97,18 +98,18 @@ int main(int argc, char **argv) {
     }
     if (rc != TROP_OK) { fprintf(stderr, "search failed %d\n", rc); return 3; }
     double t1 = trop_wtime();
+    trop_counts cnt = {0, 0, 0, 0};
     if (method == 0) {
-      int nu_ = 0, ns = 0, nc = 0;
-      rc = trop_local_estimate(&p, best[0], best[1], best[2], &o, tau, &att, &nu_, &ns, &nc, NULL);
+      rc = trop_local_estimate(&p, best[0], best[1], best[2], &o, tau, &att, &cnt, NULL);
     } else {
-      int conv = 0;
       rc = trop_global_estimate(&p, treated, n_treated, k, best[0], best[1], best[2], &o, tau,
-                                &att, &conv, NULL);
+                                &att, &cnt, NULL);
     }
     if (rc != TROP_OK) { fprintf(stderr, "estimate failed %d\n", rc); return 4; }
     double t2 = trop_wtime();
     if (B > 0) {
-      rc = trop_bootstrap(&p, method, k, best[0], best[1], best[2], rows, B, &o, NULL, draws, NULL, 0, 0, NULL);
+      rc = trop_bootstrap(&p, method, k, best[0], best[1], best[2], rows, B, &o, NULL, draws,
+                          NULL, NULL, NULL, 0, 0, NULL, 0, NULL);
       if (rc != TROP_OK) { fprintf(stderr, "bootstrap failed %d\n", rc); return 5; }
     }
     double t3 = trop_wtime();
