@@ -13,6 +13,13 @@
 - The bootstrap of `trop_effects()` runs in the C code, in parallel with
   `threads`. Before, it ran in R, one draw after another.
 
+## Speed
+
+- The local estimator calculates time-decay weights once for each fit or
+  cross-validation call and shares them across worker threads.
+  It still uses direct exponential values to preserve zero weights after
+  underflow.
+
 ## Bug fixes
 
 - In `trop_effects()`, a treated cell that `target` removes is not in a group.
