@@ -35,7 +35,7 @@ summary(fit)
 #>   Tuning: loocv, score 99.73, 28 grid evaluations
 #>   Bootstrap: 200 draws (stratified), 0 failed, normal interval
 #>   Treated units: 8 | Skipped cells: 0 | Non-converged fits: 0
-#>   Time: 29.355 s in total, 29.336 s in the C code (4 threads)
+#>   Time: 28.970 s in total, 28.951 s in the C code (4 threads)
 #>   fasttrop 0.3.0
 ```
 
