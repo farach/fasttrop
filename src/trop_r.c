@@ -7,6 +7,8 @@
 #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
 #include <math.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include "trop_core.h"
 
@@ -19,6 +21,7 @@ static void fail_rc(int rc) {
   if (rc == TROP_ERR_ALLOC) Rf_error("fasttrop: the C code could not get the necessary memory.");
   if (rc == TROP_ERR_INTERRUPT) Rf_error("fasttrop: the user stopped the calculation.");
   if (rc == TROP_ERR_INPUT) Rf_error("fasttrop: the C code got an incorrect input.");
+  if (rc == TROP_ERR_NUMERIC) Rf_error("fasttrop: the singular value decomposition failed.");
   if (rc != TROP_OK) Rf_error("fasttrop: the C code stopped with error code %d.", rc);
 }
 
@@ -40,6 +43,7 @@ static trop_opts read_opts(SEXP control) {
   o.warm = (int) list_num(control, "warm", 1);
   o.solver = (int) list_num(control, "solver", 0);
   o.throttle = (int) list_num(control, "throttle", 0);
+  o.fault = (int) list_num(control, "fault", 0);
   if (o.max_iter < 1 || o.max_inner < 1 || !(o.tol > 0)) Rf_error("The control options are not correct.");
   return o;
 }
@@ -102,8 +106,8 @@ static SEXP lambda3(const double *v) {
 
 static SEXP trace_matrix(const double *tr, int n, int max_trace) {
   int m = n < max_trace ? n : max_trace;
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, m, 4));
-  for (int j = 0; j < 4; j++)
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, m, TROP_TRACE_COLS));
+  for (int j = 0; j < TROP_TRACE_COLS; j++)
     for (int k = 0; k < m; k++) REAL(out)[k + (R_xlen_t) m * j] = tr[k + (R_xlen_t) max_trace * j];
   UNPROTECT(1);
   return out;
@@ -152,22 +156,24 @@ SEXP C_local_estimate(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP lambda, SEXP contro
   SEXP tau = PROTECT(Rf_allocMatrix(REALSXP, p.N, p.T));
   SEXP phi = PROTECT(phi_vec(p.p));
   double att = NAN, t0 = trop_wtime();
-  int used = 0, skipped = 0, nonconv = 0;
+  trop_counts cnt = {0, 0, 0, 0};
   trop_qos_enter(&o);
-  int rc = trop_local_estimate(&p, lt, lu, ln, &o, REAL(tau), &att, &used, &skipped, &nonconv,
+  int rc = trop_local_estimate(&p, lt, lu, ln, &o, REAL(tau), &att, &cnt,
                                p.p > 0 ? REAL(phi) : NULL);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
   if (rc != TROP_OK) { UNPROTECT(2); fail_rc(rc); }
-  const char *nm[] = {"att", "tau", "n_used", "n_skipped", "n_nonconverged", "kernel_seconds", "phi"};
-  SEXP out = PROTECT(named_list(7, nm));
+  const char *nm[] = {"att", "tau", "n_used", "n_skipped", "n_nonconverged", "n_failed",
+                      "kernel_seconds", "phi"};
+  SEXP out = PROTECT(named_list(8, nm));
   SET_VECTOR_ELT(out, 0, Rf_ScalarReal(att));
   SET_VECTOR_ELT(out, 1, tau);
-  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(used));
-  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(skipped));
-  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(nonconv));
-  SET_VECTOR_ELT(out, 5, Rf_ScalarReal(el));
-  SET_VECTOR_ELT(out, 6, phi);
+  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(cnt.used));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(cnt.skipped));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(cnt.nonconv));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarInteger(cnt.failed));
+  SET_VECTOR_ELT(out, 6, Rf_ScalarReal(el));
+  SET_VECTOR_ELT(out, 7, phi);
   UNPROTECT(3);
   return out;
 }
@@ -198,18 +204,20 @@ SEXP C_local_loocv(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP lambda, SEXP cells, SE
     cp = INTEGER(cells);
   }
   double Q = NAN, t0 = trop_wtime();
-  int nv = 0, nc = 0;
+  trop_counts cnt = {0, 0, 0, 0};
   trop_qos_enter(&o);
-  int rc = trop_local_loocv(&p, lt, lu, ln, cp, n_cells, &o, &Q, &nv, &nc);
+  int rc = trop_local_loocv(&p, lt, lu, ln, cp, n_cells, &o, &Q, &cnt);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
   fail_rc(rc);
-  const char *nm[] = {"Q", "n_valid", "n_nonconverged", "kernel_seconds"};
-  SEXP out = PROTECT(named_list(4, nm));
+  const char *nm[] = {"Q", "n_valid", "n_skipped", "n_nonconverged", "n_failed", "kernel_seconds"};
+  SEXP out = PROTECT(named_list(6, nm));
   SET_VECTOR_ELT(out, 0, Rf_ScalarReal(Q));
-  SET_VECTOR_ELT(out, 1, Rf_ScalarInteger(nv));
-  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(nc));
-  SET_VECTOR_ELT(out, 3, Rf_ScalarReal(el));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarInteger(cnt.used));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(cnt.skipped));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(cnt.nonconv));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(cnt.failed));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarReal(el));
   UNPROTECT(1);
   return out;
 }
@@ -229,7 +237,7 @@ SEXP C_local_search(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP g_time, SEXP g_unit, 
   }
   int nt = (int) XLENGTH(g_time), nu = (int) XLENGTH(g_unit), nn = (int) XLENGTH(g_nn);
   int max_trace = 3 * (nt + nu + nn) * (Rf_asInteger(max_cycles) + 2) + 8;
-  double *trace = (double *) R_alloc((size_t) max_trace * 4, sizeof(double));
+  double *trace = (double *) R_alloc((size_t) max_trace * TROP_TRACE_COLS, sizeof(double));
   double best[3] = {NAN, NAN, NAN}, score = NAN, t0 = trop_wtime();
   int n_evals = 0;
   trop_qos_enter(&o);
@@ -260,27 +268,41 @@ SEXP C_global_estimate(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP treated, SEXP k, S
   SEXP tau = PROTECT(Rf_allocMatrix(REALSXP, p.N, p.T));
   SEXP phi = PROTECT(phi_vec(p.p));
   double att = NAN, t0 = trop_wtime();
-  int conv = 0;
+  trop_counts cnt = {0, 0, 0, 0};
   trop_qos_enter(&o);
   int rc = trop_global_estimate(&p, INTEGER(treated), (int) XLENGTH(treated), Rf_asInteger(k),
-                                lt, lu, ln, &o, REAL(tau), &att, &conv,
+                                lt, lu, ln, &o, REAL(tau), &att, &cnt,
                                 p.p > 0 ? REAL(phi) : NULL);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
   if (rc != TROP_OK) { UNPROTECT(2); fail_rc(rc); }
-  const char *nm[] = {"att", "tau", "converged", "kernel_seconds", "phi"};
-  SEXP out = PROTECT(named_list(5, nm));
+  const char *nm[] = {"att", "tau", "converged", "n_skipped", "n_failed", "kernel_seconds", "phi"};
+  SEXP out = PROTECT(named_list(7, nm));
   SET_VECTOR_ELT(out, 0, Rf_ScalarReal(att));
   SET_VECTOR_ELT(out, 1, tau);
-  SET_VECTOR_ELT(out, 2, Rf_ScalarLogical(conv));
-  SET_VECTOR_ELT(out, 3, Rf_ScalarReal(el));
-  SET_VECTOR_ELT(out, 4, phi);
+  SET_VECTOR_ELT(out, 2, Rf_ScalarLogical(cnt.nonconv == 0 && cnt.failed == 0));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(cnt.skipped));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(cnt.failed));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarReal(el));
+  SET_VECTOR_ELT(out, 6, phi);
   UNPROTECT(3);
   return out;
 }
 
 static trop_panel control_panel(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc) {
   return read_panel(Yc, Wzero, obs_c, Xc);
+}
+
+/* R keeps a matrix by columns. The C code reads each placebo set as one row
+ * in row-major order. Thus, the sets matrix of R is copied in that order. */
+static const int *sets_by_row(SEXP sets) {
+  SEXP sd = Rf_getAttrib(sets, R_DimSymbol);
+  int n = INTEGER(sd)[0], m = INTEGER(sd)[1];
+  int *out = (int *) R_alloc((n > 0 && m > 0) ? (size_t) n * (size_t) m : 1, sizeof(int));
+  const int *x = INTEGER(sets);
+  for (int r = 0; r < n; r++)
+    for (int c = 0; c < m; c++) out[(size_t) r * (size_t) m + c] = x[r + (size_t) n * c];
+  return out;
 }
 
 SEXP C_global_placebo(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP sets, SEXP lambda,
@@ -292,18 +314,22 @@ SEXP C_global_placebo(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP set
   if (!Rf_isMatrix(sets) || TYPEOF(sets) != INTSXP) Rf_error("`sets` must be an integer matrix.");
   SEXP sd = Rf_getAttrib(sets, R_DimSymbol);
   double rmse = NAN, t0 = trop_wtime();
-  int nv = 0;
+  trop_counts cnt = {0, 0, 0, 0};
   trop_qos_enter(&o);
-  int rc = trop_global_placebo(&pc, Rf_asInteger(k), INTEGER(sets), INTEGER(sd)[0], INTEGER(sd)[1],
-                               lt, lu, ln, &o, &rmse, &nv);
+  int rc = trop_global_placebo(&pc, Rf_asInteger(k), sets_by_row(sets), INTEGER(sd)[0], INTEGER(sd)[1],
+                               lt, lu, ln, &o, &rmse, &cnt);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
   fail_rc(rc);
-  const char *nm[] = {"rmse", "n_valid", "kernel_seconds"};
-  SEXP out = PROTECT(named_list(3, nm));
+  const char *nm[] = {"rmse", "n_valid", "n_skipped", "n_nonconverged", "n_failed",
+                      "kernel_seconds"};
+  SEXP out = PROTECT(named_list(6, nm));
   SET_VECTOR_ELT(out, 0, Rf_ScalarReal(rmse));
-  SET_VECTOR_ELT(out, 1, Rf_ScalarInteger(nv));
-  SET_VECTOR_ELT(out, 2, Rf_ScalarReal(el));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarInteger(cnt.used));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(cnt.skipped));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(cnt.nonconv));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(cnt.failed));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarReal(el));
   UNPROTECT(1);
   return out;
 }
@@ -318,11 +344,11 @@ SEXP C_global_search(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP sets
   int nt = (int) XLENGTH(g_time), nu = (int) XLENGTH(g_unit), nn = (int) XLENGTH(g_nn);
   int mc = Rf_asInteger(max_cycles);
   int max_trace = (nt + nu + nn) * (mc + 1) + 8;
-  double *trace = (double *) R_alloc((size_t) max_trace * 4, sizeof(double));
+  double *trace = (double *) R_alloc((size_t) max_trace * TROP_TRACE_COLS, sizeof(double));
   double best[3] = {NAN, NAN, NAN}, score = NAN, t0 = trop_wtime();
   int n_evals = 0, fixed_point = 0;
   trop_qos_enter(&o);
-  int rc = trop_global_search(&pc, Rf_asInteger(k), INTEGER(sets), INTEGER(sd)[0], INTEGER(sd)[1],
+  int rc = trop_global_search(&pc, Rf_asInteger(k), sets_by_row(sets), INTEGER(sd)[0], INTEGER(sd)[1],
                               REAL(g_time), nt, REAL(g_unit), nu, REAL(g_nn), nn, REAL(init), mc, &o,
                               r_interrupt, best, &score, &n_evals, trace, max_trace, &fixed_point);
   trop_qos_leave(&o);
@@ -341,7 +367,8 @@ SEXP C_global_search(SEXP Yc, SEXP obs_c, SEXP Wzero, SEXP Xc, SEXP k, SEXP sets
 }
 
 SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP resid, SEXP method, SEXP k, SEXP lambda,
-                 SEXP rows, SEXP control, SEXP gid, SEXP n_groups) {
+                 SEXP rows, SEXP control, SEXP eligible, SEXP gid, SEXP n_groups, SEXP uweights,
+                 SEXP per_unit) {
   trop_panel p = read_panel(Y, W, obs, X);
   p.resid = Rf_asLogical(resid) == 1;
   trop_opts o = read_opts(control);
@@ -352,7 +379,7 @@ SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP resid, SEXP method, SEXP
   int B = INTEGER(rd)[0];
   if (INTEGER(rd)[1] != p.N) Rf_error("`rows` must have N columns.");
   /* rows is an R matrix, B x N and column-major. The core uses row-major order. */
-  int *rm = (int *) R_alloc((size_t) B * (size_t) p.N, sizeof(int));
+  int *rm = (int *) R_alloc((size_t) B * (size_t) p.N + 1, sizeof(int));
   const int *ri = INTEGER(rows);
   for (int b = 0; b < B; b++)
     for (int i = 0; i < p.N; i++) {
@@ -372,22 +399,102 @@ SEXP C_bootstrap(SEXP Y, SEXP W, SEXP obs, SEXP X, SEXP resid, SEXP method, SEXP
     L = (int) (XLENGTH(gid) / NT);
     gp = INTEGER(gid);
   }
+  const double *uw = NULL;
+  if (!Rf_isNull(uweights)) {
+    if (TYPEOF(uweights) != REALSXP || XLENGTH(uweights) != p.N)
+      Rf_error("`uweights` must be a double vector with one value for each unit.");
+    uw = REAL(uweights);
+    for (int i = 0; i < p.N; i++)
+      if (!(uw[i] >= 0) || !isfinite(uw[i])) Rf_error("`uweights` must be finite and 0 or more.");
+  }
+  int pu = Rf_asLogical(per_unit) == 1;
+  const int *elig = NULL;
+  if (!Rf_isNull(eligible)) {
+    if (TYPEOF(eligible) != INTSXP || XLENGTH(eligible) != (R_xlen_t) p.N * (R_xlen_t) p.T)
+      Rf_error("`eligible` must be an integer matrix with N x T values.");
+    elig = INTEGER(eligible);
+  }
   SEXP draws = PROTECT(Rf_allocVector(REALSXP, B));
+  SEXP diag = PROTECT(Rf_allocMatrix(INTSXP, B, 5));
   SEXP gdraws = PROTECT(Rf_allocMatrix(REALSXP, G > 0 ? B : 0, G));
   double t0 = trop_wtime();
   trop_qos_enter(&o);
   int rc = trop_bootstrap(&p, Rf_asInteger(method), Rf_asInteger(k), lt, lu, ln, rm, B, &o,
-                          r_interrupt, REAL(draws), gp, L, G, G > 0 ? REAL(gdraws) : NULL);
+                          r_interrupt, REAL(draws), INTEGER(diag), elig, gp, L, G, uw, pu,
+                          G > 0 ? REAL(gdraws) : NULL);
   trop_qos_leave(&o);
   double el = trop_wtime() - t0;
-  if (rc != TROP_OK) { UNPROTECT(2); fail_rc(rc); }
-  const char *nm[] = {"draws", "kernel_seconds", "group_draws"};
-  SEXP out = PROTECT(named_list(3, nm));
+  if (rc != TROP_OK) { UNPROTECT(3); fail_rc(rc); }
+  const char *nm[] = {"draws", "diagnostics", "kernel_seconds", "group_draws"};
+  SEXP out = PROTECT(named_list(4, nm));
   SET_VECTOR_ELT(out, 0, draws);
-  SET_VECTOR_ELT(out, 1, Rf_ScalarReal(el));
-  SET_VECTOR_ELT(out, 2, gdraws);
-  UNPROTECT(3);
+  SET_VECTOR_ELT(out, 1, diag);
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal(el));
+  SET_VECTOR_ELT(out, 3, gdraws);
+  UNPROTECT(4);
   return out;
+}
+
+/* ---- fingerprint ---------------------------------------------------------- */
+
+/* 64-bit FNV-1a hash of the bytes of an R object. The hash uses the type, the
+ * length, the dimensions, and the values. It is for the checkpoint files of
+ * trop_effects(), not for security. */
+static uint64_t fnv(uint64_t h, const void *data, size_t n) {
+  const unsigned char *b = (const unsigned char *) data;
+  for (size_t i = 0; i < n; i++) {
+    h ^= (uint64_t) b[i];
+    h *= 1099511628211ULL;
+  }
+  return h;
+}
+
+static uint64_t fp_sexp(uint64_t h, SEXP x) {
+  int type = TYPEOF(x);
+  long long n = Rf_isNull(x) ? 0 : (long long) XLENGTH(x);
+  h = fnv(h, &type, sizeof(type));
+  h = fnv(h, &n, sizeof(n));
+  switch (type) {
+  case NILSXP:
+    break;
+  case REALSXP:
+    h = fnv(h, REAL(x), (size_t) n * sizeof(double));
+    break;
+  case INTSXP:
+    h = fnv(h, INTEGER(x), (size_t) n * sizeof(int));
+    break;
+  case LGLSXP:
+    h = fnv(h, LOGICAL(x), (size_t) n * sizeof(int));
+    break;
+  case STRSXP:
+    for (R_xlen_t i = 0; i < (R_xlen_t) n; i++) {
+      SEXP e = STRING_ELT(x, i);
+      int na = (e == NA_STRING);
+      h = fnv(h, &na, sizeof(na));
+      if (!na) {
+        const char *c = CHAR(e);
+        size_t len = strlen(c);
+        h = fnv(h, &len, sizeof(len));
+        h = fnv(h, c, len);
+      }
+    }
+    break;
+  case VECSXP:
+    for (R_xlen_t i = 0; i < (R_xlen_t) n; i++) h = fp_sexp(h, VECTOR_ELT(x, i));
+    break;
+  default:
+    Rf_error("The fingerprint is only for NULL, numeric, logical, character, and list values.");
+  }
+  SEXP dim = Rf_getAttrib(x, R_DimSymbol);
+  if (!Rf_isNull(dim)) h = fp_sexp(h, dim);
+  return h;
+}
+
+SEXP C_fingerprint(SEXP x) {
+  uint64_t h = fp_sexp(1469598103934665603ULL, x);
+  char buf[17];
+  snprintf(buf, sizeof(buf), "%08x%08x", (unsigned int) (h >> 32), (unsigned int) (h & 0xffffffffULL));
+  return Rf_mkString(buf);
 }
 
 SEXP C_openmp_threads(void) {
@@ -407,7 +514,8 @@ static const R_CallMethodDef call_methods[] = {
   {"C_global_estimate", (DL_FUNC) &C_global_estimate, 8},
   {"C_global_placebo", (DL_FUNC) &C_global_placebo, 8},
   {"C_global_search", (DL_FUNC) &C_global_search, 12},
-  {"C_bootstrap", (DL_FUNC) &C_bootstrap, 12},
+  {"C_bootstrap", (DL_FUNC) &C_bootstrap, 15},
+  {"C_fingerprint", (DL_FUNC) &C_fingerprint, 1},
   {"C_openmp_threads", (DL_FUNC) &C_openmp_threads, 0},
   {NULL, NULL, 0}
 };

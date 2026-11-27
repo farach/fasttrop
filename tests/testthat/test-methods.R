@@ -17,7 +17,7 @@ test_that("S3 methods return consistent pieces of the fit", {
   expect_true(all(cells$unit %in% p$data$unit[p$data$d == 1]))
   expect_output(print(fit), "TROP")
   expect_output(print(fit), "lambda: time = 0.2, unit = 0.5, nn = 0.5")
-  expect_output(print(summary(fit)), "Bootstrap: 20 draws \\(stratified\\), 0 failed, normal interval")
+  expect_output(print(summary(fit)), "Bootstrap: 20 draws \\(stratified\\), 0 without an estimate, normal interval")
   expect_output(print(summary(fit)), "Tuning: set by the user")
   expect_lte(fit$timing$kernel_seconds, fit$timing$total_seconds)
 })

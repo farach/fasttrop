@@ -11,6 +11,9 @@
 #'   the dimensions of `Y` and one more dimension for the covariates. A matrix
 #'   with the dimensions of `Y` gives one covariate. A named list can contain
 #'   such matrices. Refer to the section Covariates of [trop()].
+#' @param event_time An optional numeric matrix with the dimensions of `Y`. It
+#'   gives the event time of each treated cell. Refer to the section Event
+#'   times of [trop()].
 #' @inheritParams trop
 #' @return An object of class `trop`. Refer to [trop()].
 #' @examples
@@ -28,14 +31,15 @@ trop_matrix <- function(Y, W, method = c("local", "global"), lambda = NULL, grid
                         resample = c("stratified", "controls"), conf_level = 0.95,
                         ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
                         X = NULL, covariate_method = c("joint", "residualize"),
-                        target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE) {
+                        target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE,
+                        event_time = NULL) {
   t0 <- Sys.time()
   plan <- trop_prepare(Y, W, method = method, lambda = lambda, grid = grid, cv_cells = cv_cells,
                        n_placebo = n_placebo, placebo_size = placebo_size, max_cycles = max_cycles,
                        se = se, n_boot = n_boot, resample = resample, conf_level = conf_level,
                        ci = ci, control = control, seed = seed, X = X,
                        covariate_method = covariate_method, target = target, strata = strata,
-                       boot_rows = boot_rows, demean = demean)
+                       boot_rows = boot_rows, demean = demean, event_time = event_time)
   fit <- trop_run(plan)
   fit$call <- match.call()
   fit$timing$total_seconds <- as.double(difftime(Sys.time(), t0, units = "secs"))
@@ -57,7 +61,8 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
                          resample = c("stratified", "controls"), conf_level = 0.95,
                          ci = c("normal", "percentile"), control = trop_control(), seed = NULL,
                          X = NULL, covariate_method = c("joint", "residualize"),
-                         target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE) {
+                         target = NULL, strata = NULL, boot_rows = NULL, demean = FALSE,
+                         event_time = NULL) {
   method <- match.arg(method)
   covariate_method <- match.arg(covariate_method)
   se <- match.arg(se)
@@ -84,14 +89,17 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
   }
   if (!is.null(lambda)) lambda <- as_lambda(lambda)
   p <- as_panel_inputs(Y, W)
+  event <- as_event_time(event_time, p$W, p$obs, rownames(Y))
   n_excluded <- 0L
+  excluded <- NULL
   if (!is.null(target)) {
     target <- as_target(target, p$W)
     drop <- p$W == 1L & !target
     if (!any(p$W == 1L & target & p$obs == 1L)) {
       stop("`target` has no treated cell with an outcome.", call. = FALSE)
     }
-    n_excluded <- sum(drop & p$obs == 1L)
+    excluded <- drop & p$obs == 1L
+    n_excluded <- sum(excluded)
     p$Y[drop] <- NA_real_
     p$obs[drop] <- 0L
   }
@@ -199,8 +207,8 @@ trop_prepare <- function(Y, W, method = c("local", "global"), lambda = NULL, gri
        sets = sets, set_size = size, init = init, se = se,
        rows = if (is.null(rows)) NULL else rows - 1L, rows1 = rows, resample = resample,
        conf_level = conf_level, ci = ci, control = control, ctrl = unclass(control),
-       n_excluded = n_excluded, demean = demean, stratified = !is.null(strata),
-       dimnames = dimnames(Y))
+       n_excluded = n_excluded, excluded = excluded, event = event, demean = demean,
+       stratified = !is.null(strata), dimnames = dimnames(Y))
 }
 
 #' Run the C calculations for a prepared plan
@@ -211,6 +219,7 @@ trop_run <- function(plan) {
   design <- plan$design
   ctrl <- plan$ctrl
   kernel <- 0
+  phase <- c(cv = 0, estimate = 0, bootstrap = 0)
   cv <- NULL
   lambda <- plan$lambda
   if (is.null(lambda)) {
@@ -229,12 +238,20 @@ trop_run <- function(plan) {
         warning("The placebo cross-validation did not find a fixed point in `max_cycles` cycles.",
                 call. = FALSE)
       }
+      # The placebo cells of all sets: the cells with an outcome of the units
+      # of each set in the last k periods.
+      last <- seq.int(ncol(plan$oc) - design$k + 1L, ncol(plan$oc))
       cv <- list(criterion = "placebo_rmse", score = res$score, n_evals = res$n_evals,
                  trace = trace_frame(res$trace), n_sets = nrow(plan$sets),
-                 set_size = plan$set_size, fixed_point = isTRUE(res$fixed_point))
+                 set_size = plan$set_size,
+                 n_cells = sum(plan$oc[c(plan$sets) + 1L, last, drop = FALSE]),
+                 fixed_point = isTRUE(res$fixed_point))
     }
     kernel <- kernel + res$kernel_seconds
+    phase[["cv"]] <- res$kernel_seconds
     lambda <- res$lambda
+    cv <- c(cv, cv_counts(cv$trace, lambda))
+    cv_check(cv, plan$method)
     edge <- grid_boundary(lambda, plan$grid)
     cv$boundary <- edge
     if (length(edge) > 0L) {
@@ -251,10 +268,17 @@ trop_run <- function(plan) {
   } else {
     est <- .Call(C_global_estimate, p$Y, p$W, p$obs, plan$X, as.integer(design$treated - 1L),
                  as.integer(design$k), lambda, ctrl)
-    n_skipped <- 0L
-    n_nonconv <- as.integer(!isTRUE(est$converged))
+    n_skipped <- est$n_skipped
+    n_nonconv <- as.integer(!isTRUE(est$converged) && est$n_failed == 0L &&
+                              any(is.finite(est$tau)))
   }
+  n_failed <- est$n_failed
   kernel <- kernel + est$kernel_seconds
+  phase[["estimate"]] <- est$kernel_seconds
+  if (n_failed > 0L) {
+    warning(n_failed, " fit(s) failed: the singular value decomposition failed or the result is not finite. The estimate does not use the cells of these fits.",
+            call. = FALSE)
+  }
   if (n_skipped > 0L) {
     warning("The estimator did not use ", n_skipped, " treated cell(s). The weighted untreated cells do not identify the unit effect and the period effect of these cells.",
             call. = FALSE)
@@ -278,10 +302,14 @@ trop_run <- function(plan) {
   std_error <- NA_real_
   ci <- c(NA_real_, NA_real_)
   if (plan$se == "bootstrap") {
+    eligible <- matrix(as.integer(is.finite(est$tau)), nrow(p$W), ncol(p$W))
     bs <- .Call(C_bootstrap, p$Yb, p$W, p$obs, plan$Xb, plan$resid, if (plan$method == "local") 0L else 1L,
                 as.integer(if (plan$method == "global") design$k else 0L), lambda, plan$rows, ctrl,
-                NULL, 0L)
+                eligible, NULL, 0L, NULL, FALSE)
     kernel <- kernel + bs$kernel_seconds
+    phase[["bootstrap"]] <- bs$kernel_seconds
+    diagnostics <- boot_diagnostics(bs$diagnostics)
+    boot_warnings(diagnostics)
     draws <- bs$draws
     ok <- draws[is.finite(draws)]
     if (length(ok) >= 2L) {
@@ -294,12 +322,15 @@ trop_run <- function(plan) {
       }
     }
     if (length(ok) < length(draws)) {
-      warning(length(draws) - length(ok), " of ", length(draws),
-              " bootstrap draws failed. The standard error and the interval do not use these draws.",
+      warning(sprintf("In %d of %d bootstrap draws, no treated cell has an effect. The standard error and the interval do not use these draws.",
+                      length(draws) - length(ok), length(draws)), call. = FALSE)
+    }
+    if (length(ok) < 2L) {
+      warning("Fewer than 2 bootstrap draws have an estimate. The fit has no standard error and no interval.",
               call. = FALSE)
     }
     boot <- list(draws = draws, n_failed = length(draws) - length(ok), resample = plan$resample,
-                 strata = plan$stratified, rows = plan$rows1)
+                 strata = plan$stratified, rows = plan$rows1, diagnostics = diagnostics)
   }
 
   structure(
@@ -310,12 +341,15 @@ trop_run <- function(plan) {
       n_units = nrow(p$Y), n_periods = ncol(p$Y), n_treated_units = design$n_treated_units,
       n_treated_cells = design$n_treated_cells, n_excluded_cells = plan$n_excluded,
       n_skipped = n_skipped,
-      n_nonconverged = n_nonconv, tau = tau, cv = cv, boot = boot, covariates = covariates,
-      control = plan$control, demean = plan$demean,
-      panel = list(Y = p$Yb, W = p$W, X = plan$Xb, resid = plan$resid),
+      n_nonconverged = n_nonconv, n_failed = n_failed, tau = tau, cv = cv, boot = boot,
+      covariates = covariates, control = plan$control, demean = plan$demean,
+      panel = list(Y = p$Yb, W = p$W, X = plan$Xb, resid = plan$resid, excluded = plan$excluded,
+                   event = plan$event),
       package = package_info(),
       timing = list(kernel_seconds = kernel,
-                    total_seconds = as.double(difftime(Sys.time(), t0, units = "secs"))),
+                    total_seconds = as.double(difftime(Sys.time(), t0, units = "secs")),
+                    cv_seconds = phase[["cv"]], estimate_seconds = phase[["estimate"]],
+                    bootstrap_seconds = phase[["bootstrap"]]),
       units = plan$dimnames[[1L]], times = plan$dimnames[[2L]], call = NULL
     ),
     class = "trop"
@@ -324,8 +358,57 @@ trop_run <- function(plan) {
 
 trace_frame <- function(m) {
   if (is.null(m) || length(m) == 0L) return(NULL)
-  m <- matrix(m, ncol = 4L)
-  data.frame(time = m[, 1], unit = m[, 2], nn = m[, 3], score = m[, 4])
+  m <- matrix(m, ncol = 7L)
+  data.frame(time = m[, 1], unit = m[, 2], nn = m[, 3], score = m[, 4],
+             n_valid = as.integer(m[, 5]), n_nonconverged = as.integer(m[, 6]),
+             n_failed = as.integer(m[, 7]))
+}
+
+# Totals of the fits of the cross-validation, and the counts at the chosen
+# tuning parameters.
+cv_counts <- function(trace, lambda) {
+  if (is.null(trace)) return(list(n_nonconverged = 0L, n_failed = 0L))
+  at <- which(trace$time == lambda[["time"]] & trace$unit == lambda[["unit"]] &
+                trace$nn == lambda[["nn"]])[1L]
+  list(n_nonconverged = sum(trace$n_nonconverged), n_failed = sum(trace$n_failed),
+       n_nonconverged_chosen = if (is.na(at)) NA_integer_ else trace$n_nonconverged[at],
+       n_failed_chosen = if (is.na(at)) NA_integer_ else trace$n_failed[at],
+       n_valid_chosen = if (is.na(at)) NA_integer_ else trace$n_valid[at],
+       n_valid_max = max(c(0L, trace$n_valid[is.finite(trace$score)])))
+}
+
+# Stop if no tuning value has a usable score. Give a warning when the chosen
+# values have a score for fewer cells than the criterion has, and when fits
+# failed or did not converge. For the global method, the cells are the placebo
+# cells of all sets.
+cv_check <- function(cv, method) {
+  unit <- if (method == "local") "cells" else "placebo cells"
+  total <- cv$n_cells
+  if (!is.finite(cv$score)) {
+    stop(sprintf("The cross-validation found no tuning values with a usable score. For each value in the grid, the fits of the %s failed, or the untreated cells do not identify them. Examine the grid and the panel, or set `lambda`.",
+                 unit), call. = FALSE)
+  }
+  if (isTRUE(cv$n_valid_chosen < cv$n_valid_max)) {
+    warning(sprintf("The chosen tuning values have a score for %d of %d %s. Other values in the grid have a score for %d. Thus, the scores are not comparable.",
+                    cv$n_valid_chosen, total, unit, cv$n_valid_max), call. = FALSE)
+  } else if (isTRUE(cv$n_valid_chosen < total)) {
+    warning(sprintf("The chosen tuning values have a score for %d of %d %s. The untreated cells do not identify the other %s, or their fits failed.",
+                    cv$n_valid_chosen, total, unit, unit), call. = FALSE)
+  }
+  cv_warnings(cv, method)
+}
+
+cv_warnings <- function(cv, method) {
+  what <- if (method == "local") "leave-one-out fit(s)" else "placebo fit(s)"
+  if (cv$n_failed > 0L) {
+    warning(sprintf("In the cross-validation, %d %s failed (%s at the chosen values). The criterion does not use these fits.",
+                    cv$n_failed, what, format(cv$n_failed_chosen)), call. = FALSE)
+  }
+  if (cv$n_nonconverged > 0L) {
+    warning(sprintf("In the cross-validation, %d %s did not converge (%s at the chosen values). Use a larger `max_iter` in trop_control().",
+                    cv$n_nonconverged, what, format(cv$n_nonconverged_chosen)), call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 # Set a temporary seed. The function restore() gives the random number

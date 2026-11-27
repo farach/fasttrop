@@ -5,10 +5,12 @@
 #' @param covariates Optional covariate column names.
 #' @return A list with `Y` (double, with `NA` for a cell without an outcome),
 #'   `W` (integer, 0 or 1), `X` (an N x T x p array or `NULL`), and the sorted
-#'   `units` and `times`.
+#'   `units` and `times`. A cell without a row gets a treatment from the rows
+#'   of its unit. Refer to fill_missing_treatment(). The element `ambiguous`
+#'   has the units with an uncertain start.
 #' @noRd
 panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NULL,
-                           target = NULL, strata = NULL) {
+                           target = NULL, strata = NULL, event_time = NULL) {
   if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
   for (nm in c("outcome", "treatment", "unit", "time")) {
     v <- get(nm)
@@ -42,6 +44,22 @@ panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NU
   idx <- cbind(i, t)
   Y[idx] <- as.double(y)
   W[idx] <- as.integer(d)
+  present <- matrix(FALSE, N, TT)
+  present[idx] <- TRUE
+  event_m <- NULL
+  if (!is.null(event_time)) {
+    if (!is.character(event_time) || length(event_time) != 1L || !event_time %in% names(data)) {
+      stop("`event_time` must be the name of one column in `data`.", call. = FALSE)
+    }
+    ev <- data[[event_time]]
+    if (!is.numeric(ev) && !all(is.na(ev))) {
+      stop(sprintf("Column `%s` must be numeric.", event_time), call. = FALSE)
+    }
+    event_m <- matrix(NA_real_, N, TT, dimnames = dimnames(Y))
+    event_m[idx] <- as.double(ev)
+  }
+  fill <- fill_missing_treatment(W, present, event_m)
+  W <- fill$W
   X <- NULL
   if (!is.null(covariates)) {
     X <- covariate_array(data, covariates, i, t, N, TT, units, times, is.finite(y))
@@ -72,7 +90,105 @@ panel_matrices <- function(data, outcome, treatment, unit, time, covariates = NU
       stop(sprintf("Column `%s` must have one value for each unit.", strata), call. = FALSE)
     }
   }
-  list(Y = Y, W = W, X = X, units = units, times = times, target = target_m, strata = strata_v)
+  list(Y = Y, W = W, X = X, units = units, times = times, target = target_m, strata = strata_v,
+       event = event_m, ambiguous = units[fill$ambiguous])
+}
+
+# The treatment of the cells without a row. A cell gets the value 1 if the
+# nearest row before it has the value 1, and the nearest row after it has the
+# value 1 or does not exist. Otherwise, it gets 0. Thus, a missing row does not
+# stop a treatment run. With event times, the treated rows after the cell can
+# show that their run starts after the cell. Then the treatment stopped and
+# started again, and the cell gets 0. The start of a run is not certain if the
+# cells just before its first treated row have no row. The element `ambiguous`
+# has the numbers of these units.
+fill_missing_treatment <- function(W, present, event = NULL) {
+  if (all(present)) return(list(W = W, ambiguous = integer()))
+  N <- nrow(W)
+  TT <- ncol(W)
+  prev_w <- next_w <- matrix(NA_integer_, N, TT)
+  last <- rep(NA_integer_, N)
+  for (t in seq_len(TT)) {
+    prev_w[, t] <- last
+    last[present[, t]] <- W[present[, t], t]
+  }
+  last <- rep(NA_integer_, N)
+  for (t in rev(seq_len(TT))) {
+    next_w[, t] <- last
+    last[present[, t]] <- W[present[, t], t]
+  }
+  miss <- !present
+  one <- miss & !is.na(prev_w) & prev_w == 1L & (is.na(next_w) | next_w == 1L)
+  if (!is.null(event) && any(one)) {
+    later <- next_run_start(W, present, event) > col(W)
+    one <- one & !(!is.na(later) & later)
+  }
+  W[one] <- 1L
+  amb <- miss & (is.na(prev_w) | prev_w == 0L) & !is.na(next_w) & next_w == 1L
+  list(W = W, ambiguous = which(rowSums(amb) > 0L))
+}
+
+# For each cell, the start (period minus event time) of the treated rows that
+# come next. The treated rows next to each other form a segment. A segment
+# gets the start of any of its rows with an event time. A cell without a row
+# gets the start of the next segment, or NA.
+next_run_start <- function(W, present, event) {
+  N <- nrow(W)
+  TT <- ncol(W)
+  tr <- present & W == 1L
+  first <- tr & cbind(FALSE, !tr[, -TT, drop = FALSE])
+  seg <- t(apply(first, 1L, cumsum))
+  if (TT == 1L) seg <- matrix(seg, N, 1L)
+  key <- (row(W) - 1L) * (TT + 1L) + seg
+  key[!tr] <- NA
+  start <- col(W) - event
+  known <- tr & !is.na(start)
+  seg_start <- start[known][match(key, key[known])]
+  dim(seg_start) <- dim(W)
+  out <- matrix(NA_real_, N, TT)
+  last <- rep(NA_real_, N)
+  for (t in rev(seq_len(TT))) {
+    out[, t] <- last
+    on <- present[, t]
+    last[on] <- seg_start[on, t]
+  }
+  out
+}
+
+# The event times of the cells, as an integer matrix. Each treated cell with an
+# outcome must have a value. In a run of treated periods, the event time must
+# increase by 1 from one period to the next. Thus, all cells of a run have the
+# same start. A new run can have a different start.
+as_event_time <- function(event_time, W, obs, units = NULL) {
+  if (is.null(event_time)) return(NULL)
+  if (!is.matrix(event_time) || !(is.numeric(event_time) || all(is.na(event_time))) ||
+      !all(dim(event_time) == dim(W))) {
+    stop("`event_time` must be a numeric matrix with the dimensions of `Y`.", call. = FALSE)
+  }
+  ok <- is.finite(event_time)
+  if (any(event_time[ok] != round(event_time[ok])) || any(abs(event_time[ok]) > 1e6)) {
+    stop("The values of `event_time` must be whole numbers from -1e6 to 1e6.", call. = FALSE)
+  }
+  need <- W == 1L & obs == 1L & !ok
+  if (any(need)) {
+    stop(sprintf("`event_time` has no value for %d treated cell(s) with an outcome. Give a value for each treated cell.",
+                 sum(need)), call. = FALSE)
+  }
+  out <- matrix(NA_integer_, nrow(W), ncol(W))
+  out[ok] <- as.integer(event_time[ok])
+  sel <- W == 1L & ok
+  if (any(sel)) {
+    run <- ((row(W) - 1L) * ncol(W) + run_start(W))[sel]
+    start <- (col(W) - out)[sel]
+    bad <- start != start[match(run, run)]
+    if (any(bad)) {
+      rows <- unique(row(W)[sel][bad])
+      who <- if (is.null(units)) rows else units[rows]
+      stop(sprintf("In %d unit(s), the event times do not increase by 1 from one period to the next in a run of treated periods. The event time counts the periods of the panel. A period without a row for any unit is not a period of the panel. Units: %s.",
+                   length(rows), paste(utils::head(who, 5L), collapse = ", ")), call. = FALSE)
+    }
+  }
+  out
 }
 
 #' Find the assignment design

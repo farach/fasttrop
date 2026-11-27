@@ -26,7 +26,8 @@ trop_matrix(
   target = NULL,
   strata = NULL,
   boot_rows = NULL,
-  demean = FALSE
+  demean = FALSE,
+  event_time = NULL
 )
 }
 \arguments{
@@ -101,6 +102,10 @@ and you cannot use \code{strata}.}
 \item{demean}{Logical. If \code{TRUE}, the function subtracts the mean of the
 untreated outcomes of each unit before it fits the model. Refer to the
 section Tuning grid.}
+
+\item{event_time}{An optional numeric matrix with the dimensions of \code{Y}. It
+gives the event time of each treated cell. Refer to the section Event
+times of \code{\link[=trop]{trop()}}.}
 }
 \value{
 An object of class \code{trop}. Refer to \code{\link[=trop]{trop()}}.

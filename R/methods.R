@@ -55,6 +55,15 @@ print.summary.trop <- function(x, digits = 4L, ...) {
   if (!is.null(x$cv)) {
     cat(sprintf("  Tuning: %s, score %s, %d grid evaluations\n", x$cv$criterion,
                 format(signif(x$cv$score, digits)), x$cv$n_evals))
+    total <- x$cv$n_cells
+    if (!is.null(x$cv$n_valid_chosen) && !is.na(x$cv$n_valid_chosen) && !is.null(total)) {
+      cat(sprintf("  Tuning score: uses %d of %d %s\n", x$cv$n_valid_chosen, total,
+                  if (identical(x$cv$criterion, "loocv")) "cells" else "placebo cells"))
+    }
+    if (isTRUE(x$cv$n_nonconverged > 0L) || isTRUE(x$cv$n_failed > 0L)) {
+      cat(sprintf("  Tuning fits: %d did not converge, %d failed\n", x$cv$n_nonconverged,
+                  x$cv$n_failed))
+    }
   } else {
     cat("  Tuning: set by the user\n")
   }
@@ -73,13 +82,24 @@ print.summary.trop <- function(x, digits = 4L, ...) {
   }
   if (!is.null(x$boot)) {
     label <- if (isTRUE(x$boot$strata)) paste(x$boot$resample, "within strata") else x$boot$resample
-    cat(sprintf("  Bootstrap: %d draws (%s), %d failed, %s interval\n", length(x$boot$draws),
-                label, x$boot$n_failed, x$ci_type))
+    cat(sprintf("  Bootstrap: %d draws (%s), %d without an estimate, %s interval\n",
+                length(x$boot$draws), label, x$boot$n_failed, x$ci_type))
+    lines <- diag_lines(x$boot$diagnostics)
+    if (length(lines) > 0L) {
+      cat(paste0("  Bootstrap fits: ", lines, "\n"), sep = "")
+    } else if (!is.null(x$boot$diagnostics)) {
+      cat("  Bootstrap fits: all converged, and no fit failed\n")
+    }
   }
-  cat(sprintf("  Treated units: %d | Skipped cells: %d | Non-converged fits: %d\n",
-              x$n_treated_units, x$n_skipped, x$n_nonconverged))
+  n_failed <- if (is.null(x$n_failed)) 0L else x$n_failed
+  cat(sprintf("  Treated units: %d | Skipped cells: %d | Non-converged fits: %d | Failed fits: %d\n",
+              x$n_treated_units, x$n_skipped, x$n_nonconverged, n_failed))
   cat(sprintf("  Time: %.3f s in total, %.3f s in the C code (%d threads)\n",
               x$timing$total_seconds, x$timing$kernel_seconds, x$control$threads))
+  if (!is.null(x$timing$estimate_seconds)) {
+    cat(sprintf("  C time by step: tuning %.3f s, estimate %.3f s, bootstrap %.3f s\n",
+                x$timing$cv_seconds, x$timing$estimate_seconds, x$timing$bootstrap_seconds))
+  }
   if (!is.null(x$package) && !is.na(x$package$version)) {
     cat(sprintf("  fasttrop %s%s\n", x$package$version,
                 if (is.na(x$package$sha)) "" else paste0(" (commit ", substr(x$package$sha, 1L, 7L), ")")))

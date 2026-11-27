@@ -1,0 +1,342 @@
+---
+title: "Plan, run, and examine a large study"
+description: >
+  How to make the treatment, the target, and the event times from start
+  dates, count the cells before you see the results, run a long bootstrap
+  with a checkpoint, and read the diagnostics of the draws.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE)
+source("_setup.R")
+```
+
+::: {.key-points}
+Key points
+
+- Use `trop_rollout()` to make the treatment, the target, and the event times
+  from the start date of each unit. Give the event times to `trop()` with
+  `event_time`.
+- With `event_time`, the groups are correct also when the panel has no row
+  for some periods.
+- Use `trop_cells()` to count the cells of each group before you calculate the
+  bootstrap. It does not show the effects.
+- Give all sets of groups to one call of `trop_effects()`. Then the C code
+  calculates the estimator only one time for each draw.
+- Use `checkpoint` to save the draws to a file during a long run. If R stops,
+  the same call continues from the file.
+- Read the column `n_draws` and the diagnostics of the draws before you
+  report a result.
+:::
+
+## A practice rollout
+
+In this practice panel, 60 units have 14 monthly periods. Twenty-four units
+start the treatment in month 7, 9, or 11. The other units do not start in the
+panel. The units know their start month. Thus, the outcome changes by 0.5 one
+month before the start. The true effect is 1 at the start, and it increases by
+0.2 each month after the start.
+
+```{r data}
+library(fasttrop)
+set.seed(42)
+units <- sprintf("org%02d", 1:60)
+start_month <- c(rep(c(7, 9, 11), each = 8), rep(NA, 36))
+panel <- expand.grid(unit = units, month = 1:14, stringsAsFactors = FALSE)
+panel$start <- start_month[match(panel$unit, units)]
+k <- panel$month - panel$start
+panel$y <- rnorm(60)[match(panel$unit, units)] + cumsum(rnorm(14, 0, 0.3))[panel$month] +
+  rnorm(nrow(panel), 0, 0.3) +
+  ifelse(!is.na(k) & k >= 0, 1 + 0.2 * k, 0) + ifelse(!is.na(k) & k == -1, 0.5, 0)
+```
+
+## Make the treatment, the target, and the event times
+
+The month before the start is not a good control, because the outcome
+changes in that month. `trop_rollout()` marks this month as treated with
+`anticipation = 1`. A treated cell is not a control for any fit.
+
+The target is the set of treated cells in the estimate. This study
+examines the first 4 months of the treatment. Thus, the window is the event
+times 0 to 3. The anticipation month is treated, but it is not in the target.
+
+The event time is the number of months since the true start. Thus, the
+anticipation month has the event time -1.
+
+```{r rollout}
+r <- trop_rollout(panel$unit, panel$month, panel$start, anticipation = 1,
+                  window = c(0, 3))
+panel <- cbind(panel, r)
+panel[panel$unit == "org01", c("month", "start", "treated", "target", "event_time")]
+```
+
+## Fit one time without the bootstrap
+
+The fit uses fixed tuning parameters to keep the build of this page fast. In
+a real study, select them with cross-validation before you examine the treated
+outcomes. Use `se = "none"`, because the bootstrap comes later with all the
+groups.
+
+The argument `event_time` keeps the event times of `trop_rollout()` in the
+fit. Then `trop_effects()` and `trop_cells()` use them for the groups.
+
+```{r fit, warning = FALSE}
+lambda <- c(time = 0.2, unit = 0.5, nn = 1)
+fit <- trop(panel, outcome = "y", treatment = "treated", unit = "unit",
+            time = "month", target = "target", event_time = "event_time",
+            lambda = lambda, se = "none")
+fit
+```
+
+## Count the cells before you see the results
+
+`trop_cells()` shows the cells of each group, but not the effects. Use it to
+make sure that the estimate contains the correct cells for your question.
+
+```{r cells}
+trop_cells(fit)
+```
+
+Each row is an event time. The column `n_cells` counts the cells in the
+estimate. The column `n_excluded` counts the treated cells outside of the
+target. Event time -1 is the anticipation month. Its cells are treated, but
+they are not in the estimate. The column `share` gives the weight of each
+event time in the overall estimate.
+
+## Why the fit must keep the event times
+
+A fit without `event_time` finds the start of each run from the treatment.
+In this panel, the first treated month is the anticipation month. Thus, all
+labels move by one month:
+
+```{r cells-wrong, warning = FALSE}
+fit_w <- trop(panel, outcome = "y", treatment = "treated", unit = "unit",
+              time = "month", target = "target", lambda = lambda, se = "none")
+head(trop_cells(fit_w), 3)
+```
+
+With `anticipation = 1`, `trop_cells()` and `trop_effects()` move the labels
+back by one month. This method works only if the panel has a row for the
+first treated month of each unit. In the next panel, unit `org01` has no row
+for month 6. Month 6 is its anticipation month and its first treated month.
+Thus, its first treated row is its true start.
+
+```{r gap, warning = TRUE}
+gap <- panel[!(panel$unit == "org01" & panel$month == 6), ]
+fit_gap <- trop(gap, outcome = "y", treatment = "treated", unit = "unit",
+                time = "month", target = "target", lambda = lambda, se = "none")
+```
+
+The first message tells you that the start of the treatment of `org01` is not
+certain. The second message is about the design, and it is also true for the
+first fit. With `anticipation = 1`, event time -1 now has a cell in the
+estimate. This cell is the true start of `org01`:
+
+```{r gap-wrong}
+head(trop_cells(fit_gap, anticipation = 1), 3)
+```
+
+With `event_time`, the groups are correct. A month without a row does not
+change the event times of the other months.
+
+```{r gap-right, warning = FALSE}
+fit_gap <- trop(gap, outcome = "y", treatment = "treated", unit = "unit",
+                time = "month", target = "target", event_time = "event_time",
+                lambda = lambda, se = "none")
+head(trop_cells(fit_gap), 3)
+```
+
+A month without a row in the middle of a treatment run does not stop the run.
+`trop()` gives such a cell the treatment of the rows before and after it. The
+cell has no outcome. Thus, it is not in the estimate, and the labels of the
+other months do not change, also with `anticipation`.
+
+## Choose the weights
+
+By default, each cell has the same weight. Thus, a unit with more cells in a
+group has more weight in that group. With `weights = "unit"`, each unit has
+the same total weight in each group. In this study, each treated unit has 4
+cells in the window. Thus, the two rules give the same estimates here.
+
+With `unit_weights`, each unit gets its own weight, for example its number of
+workers before the treatment. Use a value that the treatment cannot change.
+A unit with a weight of 0 is not in the estimate. The weights are relative.
+Thus, only the ratios of the weights change the estimate.
+
+```{r weights}
+workers <- setNames(round(runif(60, 50, 500)), units)
+trop_cells(fit, by = "overall", weights = "unit", unit_weights = workers)
+```
+
+## Run the bootstrap one time for all groups
+
+Make the bootstrap rows one time with `trop_boot_rows()`. Then give all sets
+of groups to one call of `trop_effects()` as a named list. Each draw then
+calculates the estimator only one time, for all the groups.
+
+A long bootstrap can take hours. With `checkpoint`, the function saves the
+draws to a file after each block of draws. With `progress = TRUE`, it shows
+the number of draws that are done and an estimate of the time that is left.
+This page uses 100 draws. A real study must use more draws.
+
+```{r boot, message = TRUE}
+W <- tapply(panel$treated, list(panel$unit, panel$month), sum)
+rows <- trop_boot_rows(W, n_boot = 100, seed = 7)
+ck <- tempfile("my-study-draws-", fileext = ".rds")
+res <- trop_effects(fit, by = list(att = "overall", event = "event_time",
+                                   cohort = "cohort"),
+                    boot_rows = rows, checkpoint = ck, progress = TRUE)
+res$event
+```
+
+If R stops before the end, run the same call again. The function reads the
+file and calculates only the draws that are not in it. The results are equal
+to the results of one run without a stop. The file has a fingerprint of the
+calculation. If you change the data, the groups, the weights, the rows, or the
+tuning parameters, the function stops with an error. It does not use the old
+draws.
+
+## Read the diagnostics
+
+The column `n_draws` gives the number of draws with a value for each group. A
+group has no value in a draw if the draw has no treated cell of the group.
+The band uses only the draws with a value for all groups. The last lines of
+the print show this number.
+
+Many draws can have no value for a group, for example for a small cohort.
+Then you can make the draws with the cohort of each unit as `strata` in
+`trop_boot_rows()`. The units that are never treated must have their own
+stratum, because `strata` cannot have `NA` values. Each draw then has the same
+number of units of each cohort as the data:
+
+```{r strata}
+first <- tapply(panel$start, panel$unit, function(s) s[1])
+cohort <- ifelse(is.na(first), "never", first)
+rows_c <- trop_boot_rows(W, n_boot = 100, strata = cohort, seed = 7)
+table(cohort[rows_c[1, ]])
+```
+
+A group can still have no value in a draw if the untreated units of the draw
+do not identify its cells. Thus, examine `n_draws` and the column `n_dropped`
+of the diagnostics also with these draws. A cohort with few units has little
+variation in such draws.
+
+The attribute `diagnostics` counts the fits of each draw. A fit that does not
+converge stops at the iteration limit. A fit that fails has no result,
+because the singular value decomposition failed or the result is not finite.
+
+```{r diag}
+head(attr(res$event, "diagnostics"), 3)
+```
+
+The next fit uses a very low iteration limit to show the messages. Do not use
+such a limit in a real study.
+
+```{r diag-low, warning = TRUE}
+low <- fit
+low$control <- trop_control(max_iter = 1, max_inner = 1)
+trop_effects(low, by = "overall", boot_rows = rows[1:10, ])
+```
+
+If a draw has fits that did not converge, use a larger `max_iter` in
+`trop_control()`. If a draw cannot identify some cells, the draw uses fewer
+cells than the estimate. Then the standard error is not the standard error of
+the same estimand. Find the reason before you report the result.
+
+## Combine the groups
+
+`coef()` and `vcov()` give the estimates and their covariance from the draws.
+`trop_contrast()` calculates linear combinations of the estimates from the
+same draws. It does not calculate the estimator again.
+
+```{r contrast}
+ct <- trop_contrast(res$event, list(
+  mean_0_3 = c("0" = 1, "1" = 1, "2" = 1, "3" = 1) / 4,
+  change_0_to_3 = c("3" = 1, "0" = -1)
+))
+ct
+```
+
+The result is a `trop_effects` object. Thus, `trop_stepdown()` can adjust the
+p-values of all the tests in a family together.
+
+```{r stepdown}
+trop_stepdown(list(event = res$event, contrast = ct))
+```
+
+## Placebo periods for a sensitivity analysis
+
+The 'HonestDiD' package gives confidence sets when parallel trends is not
+exactly true. It uses event-time estimates before and after the start, relative
+to a reference period. To get estimates before the start, mark these periods
+as treated and keep them in the target. Then the fit estimates them as
+placebo effects.
+
+In the next fit, the 3 months before the start are placebo periods. The
+window starts at event time -3. The event times do not change, because they
+count the months from the true start.
+
+```{r placebo, warning = FALSE}
+rp <- trop_rollout(panel$unit, panel$month, panel$start, anticipation = 3,
+                   window = c(-3, 3))
+panel$placebo <- rp$treated
+panel$placebo_target <- rp$target
+fit_p <- trop(panel, outcome = "y", treatment = "placebo", unit = "unit",
+              time = "month", target = "placebo_target", event_time = "event_time",
+              lambda = lambda, boot_rows = rows)
+ev_p <- trop_effects(fit_p, by = "event_time")
+ev_p[, c("event_time", "estimate", "std.error", "n_draws")]
+```
+
+The estimate at event time -1 is not near 0, because the units change one
+month before the start. In this design, the placebo months are not controls.
+Thus, the effects after the start are different from the effects of the first
+fit.
+
+`trop_honest_inputs()` subtracts the estimate of the reference period from the
+other estimates. It also gives their covariance from the draws. The element
+`l_vec` gives the weight of each event time after the reference in the
+result of 'HonestDiD'.
+
+```{r honest}
+inp <- trop_honest_inputs(ev_p, reference = -2)
+round(inp$betahat, 3)
+c(pre = inp$numPrePeriods, post = inp$numPostPeriods)
+inp$l_vec
+```
+
+With the reference -2, event time -1 is a period after the reference. Thus,
+the sensitivity analysis treats the anticipation month as a treated period.
+By default, 'HonestDiD' examines the first period after the reference. Here,
+this period is event time -1. Give `l_vec` to examine event time 0. With
+`event_times = 0:3`, `l_vec` gives the mean of the event times 0 to 3.
+
+The next code gives the inputs to 'HonestDiD'. This website does not run this
+code, because it does not install 'HonestDiD'.
+
+```{r honest-run, eval = FALSE}
+HonestDiD::createSensitivityResults_relativeMagnitudes(
+  betahat = inp$betahat, sigma = inp$sigma,
+  numPrePeriods = inp$numPrePeriods, numPostPeriods = inp$numPostPeriods,
+  l_vec = inp$l_vec, Mbarvec = c(0.5, 1, 2)
+)
+```
+
+::: {.limit-box}
+Limits
+
+- `trop_cells()` counts cells. It cannot tell you if the estimand answers
+  your question. Write the estimand before you see the results.
+- Without `event_time`, the groups use the first treated row of each run.
+  If the panel has no row for the first treated period of a run, the event
+  times and the cohort of that run are wrong. `trop()` gives a warning when
+  the start of a run is not certain.
+- The bootstrap keeps the tuning parameters fixed.
+- A checkpoint file contains the draws, but not the panel. Keep it in a
+  folder on your computer. Do not change the calculation between two runs with
+  the same file.
+- `trop_honest_inputs()` does not accept event times with gaps. 'HonestDiD'
+  treats the estimates as consecutive periods.
+- The placebo design changes the fit, because the placebo periods are not
+  controls.
+:::

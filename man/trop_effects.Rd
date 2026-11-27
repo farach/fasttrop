@@ -4,6 +4,8 @@
 \alias{trop_effects}
 \alias{print.trop_effects}
 \alias{as.data.frame.trop_effects}
+\alias{coef.trop_effects}
+\alias{vcov.trop_effects}
 \title{Effects by event time, cohort, period, or unit}
 \usage{
 trop_effects(
@@ -17,12 +19,20 @@ trop_effects(
   conf_level = fit$conf.level,
   ci = c("normal", "percentile"),
   seed = NULL,
-  anticipation = 0L
+  anticipation = 0L,
+  weights = c("cell", "unit"),
+  unit_weights = NULL,
+  checkpoint = NULL,
+  progress = FALSE
 )
 
 \method{print}{trop_effects}(x, digits = 4L, ...)
 
 \method{as.data.frame}{trop_effects}(x, row.names = NULL, optional = FALSE, ...)
+
+\method{coef}{trop_effects}(object, ...)
+
+\method{vcov}{trop_effects}(object, ...)
 }
 \arguments{
 \item{fit}{A \code{trop} object from \code{\link[=trop]{trop()}} or \code{\link[=trop_matrix]{trop_matrix()}} with
@@ -55,6 +65,18 @@ change the state of the random number generator in the R session.}
 that come before the true start. Refer to the section Anticipation. The
 default 0 uses the first treated period as the start.}
 
+\item{weights}{Use \code{"cell"} or \code{"unit"}. Refer to the section Weights.}
+
+\item{unit_weights}{An optional numeric vector with one weight of 0 or more
+for each unit. A named vector must have a value for each unit name of the
+fit. A vector without names must be in the order of the rows of the panel.}
+
+\item{checkpoint}{An optional path of a file for the bootstrap draws. Refer
+to the section Long runs.}
+
+\item{progress}{Logical. If \code{TRUE}, the function shows the progress of the
+bootstrap.}
+
 \item{x}{A \code{trop_effects} object.}
 
 \item{digits}{The number of significant digits to show.}
@@ -62,16 +84,23 @@ default 0 uses the first treated period as the start.}
 \item{...}{Not used.}
 
 \item{row.names, optional}{Not used.}
+
+\item{object}{A \code{trop_effects} object.}
 }
 \value{
 A data frame of class \code{trop_effects} with one row for each group.
 The columns are the group (the name of the column is the value of \code{by}),
-\code{estimate}, and \code{n_cells}. With a bootstrap, the columns \code{std.error},
-\code{conf.low}, \code{conf.high}, \code{band.low}, and \code{band.high} are also in the data
-frame. The data frame has these attributes: \code{draws} (a matrix with one
-column for each group), \code{rows} (the rows of the draws), and \code{critical} (the
-critical value of the band). When \code{by} is a list, the result is a named
-list of such data frames.
+\code{estimate}, \code{n_cells}, and \code{n_units}. With a bootstrap, the columns
+\code{std.error}, \code{conf.low}, \code{conf.high}, \code{band.low}, \code{band.high}, and
+\code{n_draws} are also in the data frame. The data frame has these attributes:
+\code{draws} (a matrix with one column for each group), \code{rows} (the rows of the
+draws), \code{critical} (the critical value of the band), \code{n_complete} (the
+number of draws with a value for all groups), \code{diagnostics}, and \code{units}
+(the names of the units of the fit). When \code{by} is a list, the result is a
+named list of such data frames.
+
+\code{coef()} gives the estimates with the group names. \code{vcov()} gives the
+covariance matrix of the draws, from the draws with a value for all groups.
 }
 \description{
 \code{trop_effects()} averages the effects of the treated cells of a \code{\link[=trop]{trop()}} fit
@@ -83,7 +112,8 @@ bootstrap standard errors, intervals, and simultaneous bands for all groups.
 The function uses the effects \code{tau} of the fit. Thus, the target cells of the
 fit are the only cells in the groups. A cell that has no effect in the fit,
 for example a cell outside of the target, is not in a group. A group with no
-such cell is not in the result.
+such cell is not in the result. Use \code{\link[=trop_cells]{trop_cells()}} to count the cells of
+each group before you calculate the bootstrap.
 }
 \section{Groups}{
 
@@ -126,7 +156,39 @@ true start. A cohort that starts after the last period of the panel is not
 in a group.
 
 To keep the anticipation cells out of the estimate, also remove
-them from the \code{target} of the fit.
+them from the \code{target} of the fit. Use \code{\link[=trop_rollout]{trop_rollout()}} to make \code{W} and
+\code{target} from the start dates.
+
+The function finds the start of each run from \code{W}. If a run starts in the
+first period of the panel, its anticipation periods can be before the panel.
+Then the event times of the run can be wrong, and the function gives a
+warning message. If the fit has event times from the argument \code{event_time}
+of \code{\link[=trop]{trop()}}, the function uses them. Then \code{anticipation} must be 0. Refer to
+the section Event times of \code{\link[=trop]{trop()}}.
+}
+
+\section{Weights}{
+
+By default, each cell in a group has the same weight. Thus, a unit with more
+cells in a group has more weight in the group. With \code{weights = "unit"}, each
+unit has the same total weight in each group. The function divides the
+weight of a unit by its number of cells in the group.
+
+The weights are relative. In each group, the function divides the weights
+by the largest weight of the units of that group. Thus, the estimate of a
+group does not depend on the weights of other units. In a group, the
+largest positive weight must be less than 1e200 times the smallest positive
+weight.
+
+With \code{unit_weights}, each unit has its own weight, for example its number of
+workers before the treatment. Use weights that the treatment cannot change.
+With \code{weights = "cell"}, each cell gets the weight of its unit. With
+\code{weights = "unit"}, the weight of a unit is its total weight in each group.
+A unit with a weight of 0 is not in a group.
+
+The bootstrap uses the same weights. A unit that a draw selects two times
+counts as two units in the draw. The ATT of the fit always gives the same
+weight to each cell.
 }
 
 \section{Inference}{
@@ -135,7 +197,9 @@ The bootstrap uses the unit draws of the fit. For each draw, the function
 calculates the local estimator again with the tuning parameters of the fit.
 Then it averages the effects of each group. The tuning parameters do not
 change. The standard error of a group is the standard deviation of its draws.
-A group that has no treated cell in a draw has no value for that draw.
+
+A group that has no treated cell in a draw has no value for that draw. The
+column \code{n_draws} gives the number of draws with a value for each group.
 
 The draws run in parallel with the \code{threads} of the control of the fit.
 
@@ -156,8 +220,55 @@ value is a quantile of the largest absolute value of the standardized draws
 over the groups. The band contains all true group effects with the
 probability \code{conf_level}, if the bootstrap is correct.
 
+The band uses only the draws with a value for all groups. The centers and
+the standard errors of the band also come from these draws. Thus, if some
+draws have no value for a group, the band and the interval of that group use
+different draws. If fewer than 2 draws have a value for all groups, the
+band is not available.
+
 The intervals \code{conf.low} and \code{conf.high} are for one group each. The band
 needs many draws. With only one group, the band columns are \code{NA}.
+}
+
+\section{Diagnostics}{
+
+The attribute \code{diagnostics} is a data frame with one row for each draw. Its
+columns count these cells and fits of the draw:
+\itemize{
+\item \code{n_used}: the treated cells with an effect.
+\item \code{n_skipped}: the cells that the untreated cells do not identify.
+\item \code{n_nonconverged}: the fits that did not converge.
+\item \code{n_failed}: the fits that failed. A fit fails if the singular value
+decomposition fails or if the result is not finite.
+\item \code{n_dropped}: the cells that have an effect in the fit, but that the
+untreated cells of the draw do not identify. The count does not include
+the fits that failed.
+}
+
+The function gives a warning message when a draw has such fits or cells.
+It also gives a warning message for a group with fewer than 2 draws with a
+value. The print method shows these counts.
+}
+
+\section{Long runs}{
+
+With \code{progress = TRUE}, the function shows the number of draws that are
+done and an estimate of the time that is left. With \code{checkpoint}, the
+function saves the draws to a file after each block of draws. If the
+calculation stops, call the function again with the same arguments and the
+same file. The function then calculates only the draws that are not in the
+file. The results are equal to the results of one run without a stop.
+
+The file has a fingerprint of the calculation. The fingerprint uses the
+panel, the tuning parameters, the solver settings, the draw rows, the groups,
+the weights, and the version of fasttrop. If the fingerprint of the file is
+different, the function stops with an error and does not change the file.
+The number of threads is not in the fingerprint, because it does not change
+the results.
+
+The file is an RDS file with the draws, but not the panel. Keep it in a
+folder on your computer. The function makes sure that it can write to the
+folder before it starts the bootstrap.
 }
 
 \examples{
@@ -173,5 +284,6 @@ both <- trop_effects(fit, by = list(event = "event_time", time = "time"))
 trop_stepdown(both)
 }
 \seealso{
-\code{\link[=trop_boot_rows]{trop_boot_rows()}}, \code{\link[=trop_stepdown]{trop_stepdown()}}
+\code{\link[=trop_cells]{trop_cells()}}, \code{\link[=trop_contrast]{trop_contrast()}}, \code{\link[=trop_boot_rows]{trop_boot_rows()}},
+\code{\link[=trop_stepdown]{trop_stepdown()}}
 }

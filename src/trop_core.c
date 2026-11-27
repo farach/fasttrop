@@ -42,7 +42,7 @@ typedef struct {
   int N, T, K, lwork;
   double *alpha, *beta, *L, *aold, *bold, *Lold, *Lin, *Lprev, *G;
   double *A, *U, *S, *VT, *Us, *work, *w, *rs, *cs;
-  int *iwork, *queue;
+  int *iwork, *queue, *comp;
   unsigned char *seen;
   /* Covariates. X points to N*T*pmax values that the caller owns. The fit
    * uses p (0 <= p <= pmax) columns. Xt is the weighted two-way within
@@ -52,6 +52,9 @@ typedef struct {
   int p, pmax, rank;
   double *Xt, *xa, *xb, *Gx, *Cx, *Dx, *phi, *rhs, *Yx, *asv;
   int *perm;
+  /* fail is 1 after an SVD failure in the current fit. fault is the fault
+   * test of the current fit (refer to trop_opts). */
+  int fail, fault;
 } ws_t;
 
 static void ws_free(ws_t *ws) {
@@ -60,7 +63,7 @@ static void ws_free(ws_t *ws) {
   free(ws->Lold); free(ws->Lin); free(ws->Lprev); free(ws->G); free(ws->A);
   free(ws->U); free(ws->S); free(ws->VT); free(ws->Us); free(ws->work);
   free(ws->w); free(ws->rs); free(ws->cs); free(ws->iwork); free(ws->queue);
-  free(ws->seen);
+  free(ws->comp); free(ws->seen);
   free(ws->Xt); free(ws->xa); free(ws->xb); free(ws->Gx); free(ws->Cx);
   free(ws->Dx); free(ws->phi); free(ws->rhs); free(ws->Yx); free(ws->perm); free(ws->asv);
   free(ws);
@@ -91,19 +94,29 @@ static ws_t *ws_new(int N, int T, int pmax) {
   ws->S = (double *) malloc((size_t) K * sizeof(double));
   ws->iwork = (int *) malloc((size_t) 8 * (size_t) K * sizeof(int));
   ws->queue = (int *) malloc((size_t) (N + T) * sizeof(int));
+  ws->comp = (int *) malloc((size_t) (N + T) * sizeof(int));
   ws->seen = (unsigned char *) malloc((size_t) (N + T));
   if (!ws->alpha || !ws->beta || !ws->aold || !ws->bold || !ws->rs || !ws->cs ||
       !ws->L || !ws->Lold || !ws->Lin || !ws->Lprev || !ws->G || !ws->A || !ws->w ||
-      !ws->U || !ws->Us || !ws->VT || !ws->S || !ws->iwork || !ws->queue || !ws->seen) {
+      !ws->U || !ws->Us || !ws->VT || !ws->S || !ws->iwork || !ws->queue || !ws->comp ||
+      !ws->seen) {
     ws_free(ws);
     return NULL;
   }
-  /* LAPACK workspace query for the thin SVD. */
+  /* LAPACK workspace queries for the thin SVD. dgesdd is the usual routine.
+   * dgesvd is the second routine if dgesdd fails. The workspace fits both. */
   int m = N, n = T, lda = N, ldu = N, ldvt = K, info = 0, lw = -1;
-  double wq = 0.0;
+  double wq = 0.0, wq2 = 0.0;
   F77_CALL(dgesdd)("S", &m, &n, ws->A, &lda, ws->S, ws->U, &ldu, ws->VT, &ldvt,
                    &wq, &lw, ws->iwork, &info FCONE);
-  ws->lwork = (info == 0 && wq > 0) ? (int) wq + 1 : 7 * K * K + 4 * (N + T) + 64;
+  int lw1 = (info == 0 && wq > 0) ? (int) wq + 1 : 7 * K * K + 4 * (N + T) + 64;
+  info = 0;
+  F77_CALL(dgesvd)("S", "S", &m, &n, ws->A, &lda, ws->S, ws->U, &ldu, ws->VT, &ldvt,
+                   &wq2, &lw, &info FCONE FCONE);
+  int mx = (N > T) ? N : T;
+  int lw2 = (info == 0 && wq2 > 0) ? (int) wq2 + 1
+                                   : ((3 * K + mx > 5 * K) ? 3 * K + mx : 5 * K) + 64;
+  ws->lwork = (lw1 > lw2) ? lw1 : lw2;
   ws->work = (double *) malloc((size_t) ws->lwork * sizeof(double));
   if (!ws->work) { ws_free(ws); return NULL; }
   if (pmax > 0) {
@@ -143,17 +156,48 @@ static void ws_cold(ws_t *ws) {
 /* Weighted low-rank fit                                                     */
 /* ------------------------------------------------------------------------ */
 
-/* Singular-value soft-thresholding: Lout = U diag((s - thr)_+) V'. */
+/* Thin SVD of Gin in the workspace. The function returns 0 on success and 1
+ * on failure. If dgesdd fails, the function tries dgesvd, which uses QR
+ * iterations. Singular values that are not finite are also a failure. */
+static int svd_thin(ws_t *ws, const double *Gin) {
+  int N = ws->N, T = ws->T, K = ws->K;
+  size_t NT = (size_t) N * (size_t) T;
+  int m = N, n = T, lda = N, ldu = N, ldvt = K, info = 0, lw = ws->lwork;
+  memcpy(ws->A, Gin, NT * sizeof(double));
+  if (ws->fault & 1) {
+    info = 1;
+  } else {
+    F77_CALL(dgesdd)("S", &m, &n, ws->A, &lda, ws->S, ws->U, &ldu, ws->VT, &ldvt,
+                     ws->work, &lw, ws->iwork, &info FCONE);
+  }
+  if (info != 0) {
+    memcpy(ws->A, Gin, NT * sizeof(double));
+    info = 0;
+    if (ws->fault & 2) {
+      info = 1;
+    } else {
+      F77_CALL(dgesvd)("S", "S", &m, &n, ws->A, &lda, ws->S, ws->U, &ldu, ws->VT, &ldvt,
+                       ws->work, &lw, &info FCONE FCONE);
+    }
+  }
+  if (info != 0) return 1;
+  for (int k = 0; k < K; k++) if (!isfinite(ws->S[k])) return 1;
+  return 0;
+}
+
+/* Singular-value soft-thresholding: Lout = U diag((s - thr)_+) V'. If the SVD
+ * fails, the function sets ws->fail to 1 and Lout to 0. */
 static void svt(ws_t *ws, const double *Gin, double thr, double *Lout) {
   int N = ws->N, T = ws->T, K = ws->K;
   size_t NT = (size_t) N * (size_t) T;
   if (!(thr > 0.0)) { memcpy(Lout, Gin, NT * sizeof(double)); return; }
   if (!isfinite(thr)) { memset(Lout, 0, NT * sizeof(double)); return; }
-  memcpy(ws->A, Gin, NT * sizeof(double));
-  int m = N, n = T, lda = N, ldu = N, ldvt = K, info = 0, lw = ws->lwork;
-  F77_CALL(dgesdd)("S", &m, &n, ws->A, &lda, ws->S, ws->U, &ldu, ws->VT, &ldvt,
-                   ws->work, &lw, ws->iwork, &info FCONE);
-  if (info != 0) { memset(Lout, 0, NT * sizeof(double)); return; }
+  if (svd_thin(ws, Gin) != 0) {
+    ws->fail = 1;
+    memset(Lout, 0, NT * sizeof(double));
+    return;
+  }
+  int m = N, n = T;
   int r = 0;
   while (r < K && ws->S[r] - thr > SVT_EPS) r++;
   if (r == 0) { memset(Lout, 0, NT * sizeof(double)); return; }
@@ -250,10 +294,12 @@ static int fit_ws(ws_t *ws, const double *Y, const double *w, double lam,
           memcpy(ws->Lprev, L, NT * sizeof(double));
           svt(ws, ws->G, thr, L);
           tf = tfn;
+          if (ws->fail) break;
           if (maxabsdiff(L, ws->Lin, NT) < o->tol) break;
         }
       }
     }
+    if (ws->fail) break;
     double d = maxabsdiff(a, ws->aold, (size_t) N);
     double db = maxabsdiff(b, ws->bold, (size_t) T);
     if (db > d) d = db;
@@ -500,10 +546,12 @@ static int fit_ws_cov(ws_t *ws, const double *Y, const double *w, double lam,
           memcpy(ws->Lprev, L, NT * sizeof(double));
           svt(ws, ws->G, thr, L);
           tf = tfn;
+          if (ws->fail) break;
           if (maxabsdiff(L, ws->Lin, NT) < o->tol) break;
         }
       }
     }
+    if (ws->fail) break;
     double d = maxabsdiff(a, ws->aold, (size_t) N);
     double db = maxabsdiff(b, ws->bold, (size_t) T);
     if (db > d) d = db;
@@ -585,6 +633,7 @@ static int fit_ws_prox(ws_t *ws, const double *Y, const double *w, double lam,
     }
     memcpy(ws->Lprev, L, NT * sizeof(double));
     svt(ws, ws->G, thr, L);
+    if (ws->fail) break;
     /* Gradient-based adaptive restart (O'Donoghue and Candes). */
     double ip = 0.0;
     for (size_t c = 0; c < NT; c++) ip += (ws->Lin[c] - L[c]) * (L[c] - ws->Lprev[c]);
@@ -598,10 +647,19 @@ static int fit_ws_prox(ws_t *ws, const double *Y, const double *w, double lam,
   return converged;
 }
 
+/* Weighted fit with the solver of o. The function returns 1 if the fit
+ * converged. After an SVD failure, it returns 0 and ws->fail is 1. */
 static int fit_any(ws_t *ws, const double *Y, const double *w, double lam,
                    const trop_opts *o, int *iters) {
-  if (ws->p > 0 && o->solver == 1) return fit_ws_cov(ws, Y, w, lam, o, iters);
-  return (o->solver == 1) ? fit_ws(ws, Y, w, lam, o, iters) : fit_ws_prox(ws, Y, w, lam, o, iters);
+  ws->fail = 0;
+  ws->fault = (o->fault & 4) ? 0 : (o->fault & 3);
+  int conv;
+  if (ws->p > 0 && o->solver == 1) {
+    conv = fit_ws_cov(ws, Y, w, lam, o, iters);
+  } else {
+    conv = (o->solver == 1) ? fit_ws(ws, Y, w, lam, o, iters) : fit_ws_prox(ws, Y, w, lam, o, iters);
+  }
+  return conv && !ws->fail;
 }
 
 int trop_fit_weighted(int N, int T, const double *Y, const double *w,
@@ -612,13 +670,14 @@ int trop_fit_weighted(int N, int T, const double *Y, const double *w,
   if (!ws) return TROP_ERR_ALLOC;
   int it = 0;
   int conv = fit_any(ws, Y, w, lambda_nn, opt, &it);
+  int fail = ws->fail;
   memcpy(alpha, ws->alpha, (size_t) N * sizeof(double));
   memcpy(beta, ws->beta, (size_t) T * sizeof(double));
   memcpy(L, ws->L, (size_t) N * (size_t) T * sizeof(double));
   if (iters) *iters = it;
   if (converged) *converged = conv;
   ws_free(ws);
-  return TROP_OK;
+  return fail ? TROP_ERR_NUMERIC : TROP_OK;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -630,8 +689,13 @@ typedef struct {
   double *Y;            /* sanitized outcomes (0 where unobserved) */
   unsigned char *ctrl;  /* observed control cell */
   unsigned char *ob;    /* observed cell */
-  double *S;            /* pairwise sums of squared gaps over shared control cells */
-  int *n;               /* pairwise counts */
+  /* Sums of squared gaps and counts over the shared control cells, for the
+   * unit distances. Only the units that are targets of a fit have a row. Row
+   * drow[i] of S and n has the N values for unit i. */
+  double *S;
+  int *n;
+  int *drow;            /* row of unit i in S and n, or -1 */
+  int nd, cap;          /* rows in use and rows in the allocation */
   double *X;            /* covariates, N*T*p (0 where not finite) */
   int p;                /* number of covariate columns in X */
   int pf;               /* columns that the fits use: p, or 0 after residualize */
@@ -640,7 +704,7 @@ typedef struct {
 
 static void prep_free(prep_t *q) {
   if (!q) return;
-  free(q->Y); free(q->ctrl); free(q->ob); free(q->S); free(q->n); free(q->X);
+  free(q->Y); free(q->ctrl); free(q->ob); free(q->S); free(q->n); free(q->drow); free(q->X);
   free(q->phi_res);
   free(q);
 }
@@ -648,14 +712,14 @@ static void prep_free(prep_t *q) {
 static prep_t *prep_new(int N, int T, int p) {
   prep_t *q = (prep_t *) calloc(1, sizeof(prep_t));
   if (!q) return NULL;
-  size_t NT = (size_t) N * (size_t) T, NN = (size_t) N * (size_t) N;
+  size_t NT = (size_t) N * (size_t) T;
   q->N = N; q->T = T; q->p = p; q->pf = p;
   q->Y = (double *) malloc(NT * sizeof(double));
   q->ctrl = (unsigned char *) malloc(NT);
   q->ob = (unsigned char *) malloc(NT);
-  q->S = (double *) malloc(NN * sizeof(double));
-  q->n = (int *) malloc(NN * sizeof(int));
-  if (!q->Y || !q->ctrl || !q->ob || !q->S || !q->n) { prep_free(q); return NULL; }
+  q->drow = (int *) malloc((size_t) N * sizeof(int));
+  if (!q->Y || !q->ctrl || !q->ob || !q->drow) { prep_free(q); return NULL; }
+  for (int i = 0; i < N; i++) q->drow[i] = -1;
   if (p > 0) {
     q->X = (double *) malloc(NT * (size_t) p * sizeof(double));
     q->phi_res = (double *) calloc((size_t) p, sizeof(double));
@@ -664,35 +728,77 @@ static prep_t *prep_new(int N, int T, int p) {
   return q;
 }
 
-/* Pairwise sums for the unit distances, over the shared control cells. */
-static void prep_dist(prep_t *q) {
+/* Row of distance sums for unit i, over the shared control cells. For each
+ * pair, the sum adds the periods in time order. Thus, the values are equal to
+ * the values of a full pairwise calculation. */
+static void dist_row(prep_t *q, int i) {
   int N = q->N, T = q->T;
-  for (int i = 0; i < N; i++) {
-    q->S[i + (size_t) N * i] = 0.0;
-    q->n[i + (size_t) N * i] = 0;
-    for (int j = i + 1; j < N; j++) {
-      double s = 0.0;
-      int c = 0;
-      for (int t = 0; t < T; t++) {
-        size_t a = (size_t) i + (size_t) N * t, b = (size_t) j + (size_t) N * t;
-        if (q->ctrl[a] && q->ctrl[b]) {
-          double d = q->Y[a] - q->Y[b];
-          s += d * d;
-          c++;
-        }
+  double *Sr = q->S + (size_t) q->drow[i] * (size_t) N;
+  int *nr = q->n + (size_t) q->drow[i] * (size_t) N;
+  for (int j = 0; j < N; j++) { Sr[j] = 0.0; nr[j] = 0; }
+  for (int t = 0; t < T; t++) {
+    size_t it = (size_t) i + (size_t) N * t;
+    if (!q->ctrl[it]) continue;
+    double yi = q->Y[it];
+    const double *yt = q->Y + (size_t) N * t;
+    const unsigned char *ct = q->ctrl + (size_t) N * t;
+    for (int j = 0; j < N; j++) {
+      if (ct[j]) {
+        double d = yi - yt[j];
+        Sr[j] += d * d;
+        nr[j]++;
       }
-      q->S[i + (size_t) N * j] = q->S[j + (size_t) N * i] = s;
-      q->n[i + (size_t) N * j] = q->n[j + (size_t) N * i] = c;
     }
   }
+  Sr[i] = 0.0;
+  nr[i] = 0;
 }
 
-/* Fill the outcomes, the masks, and the covariates. If necessary, calculate
- * the sums for the pairwise distances. X can be NULL if q->p is 0. */
+/* Distance sums for each unit i with need[i] = 1. The memory has one row of N
+ * values for each such unit, not N rows. With parallel = 1, the rows use the
+ * threads of o. Call this function after prep_fill and prep_residualize. */
+static int prep_dist(prep_t *q, const unsigned char *need, int parallel, const trop_opts *o) {
+  int N = q->N, nd = 0;
+  for (int i = 0; i < N; i++) q->drow[i] = need[i] ? nd++ : -1;
+  q->nd = nd;
+  if (nd > q->cap) {
+    free(q->S); free(q->n);
+    q->S = (double *) malloc((size_t) nd * (size_t) N * sizeof(double));
+    q->n = (int *) malloc((size_t) nd * (size_t) N * sizeof(int));
+    if (!q->S || !q->n) {
+      free(q->S); free(q->n);
+      q->S = NULL; q->n = NULL; q->cap = 0; q->nd = 0;
+      for (int i = 0; i < N; i++) q->drow[i] = -1;
+      return TROP_ERR_ALLOC;
+    }
+    q->cap = nd;
+  }
+  int nth = parallel ? nthreads(o) : 1;
+#ifdef _OPENMP
+#pragma omp parallel num_threads(nth) if(parallel)
+#endif
+  {
+    trop_qos_enter(o);
+#ifdef _OPENMP
+#pragma omp for schedule(dynamic, 4)
+#endif
+    for (int i = 0; i < N; i++) {
+      if (q->drow[i] >= 0) dist_row(q, i);
+    }
+    trop_qos_leave(o);
+  }
+  (void) nth;
+  return TROP_OK;
+}
+
+/* Fill the outcomes, the masks, and the covariates. X can be NULL if q->p is
+ * 0. The function removes the rows of the distance sums. */
 static void prep_fill(prep_t *q, const double *Y, const int *W, const int *obs,
-                      const double *X, const int *rows, int need_dist) {
+                      const double *X, const int *rows) {
   int N = q->N, T = q->T;
   size_t NT = (size_t) N * (size_t) T;
+  for (int i = 0; i < N; i++) q->drow[i] = -1;
+  q->nd = 0;
   for (int t = 0; t < T; t++) {
     for (int i = 0; i < N; i++) {
       int src = rows ? rows[i] : i;
@@ -708,7 +814,6 @@ static void prep_fill(prep_t *q, const double *Y, const int *W, const int *obs,
     }
   }
   q->pf = q->p;
-  if (need_dist) prep_dist(q);
 }
 
 /* Residualize: fit Y on unit effects, period effects, and X over the control
@@ -757,10 +862,12 @@ static void local_weights(const prep_t *q, int i, int t, double lu,
     for (int j = 0; j < N; j++) omega[j] = 1.0;
   } else {
     size_t it = (size_t) i + (size_t) N * t;
+    const double *Sr = q->S + (size_t) q->drow[i] * (size_t) N;
+    const int *nr = q->n + (size_t) q->drow[i] * (size_t) N;
     for (int j = 0; j < N; j++) {
       if (j == i) { omega[j] = 1.0; continue; }
-      double S = q->S[i + (size_t) N * j];
-      int c = q->n[i + (size_t) N * j];
+      double S = Sr[j];
+      int c = nr[j];
       size_t jt = (size_t) j + (size_t) N * t;
       if (q->ctrl[it] && q->ctrl[jt]) {
         double d = q->Y[it] - q->Y[jt];
@@ -817,21 +924,70 @@ static int estimable(ws_t *ws, const double *w, int i, int t) {
   return ws->seen[i];
 }
 
+/* Connected components of the bipartite graph of the cells with a positive
+ * weight. The units are the nodes 0 to N-1, and the periods are the nodes N
+ * to N+T-1. The effects alpha_i + beta_t of cell (i, t) are identified if
+ * ws->comp[i] == ws->comp[N + t]. A node without an edge has its own label. */
+static void components(ws_t *ws, const double *w) {
+  int N = ws->N, T = ws->T;
+  for (int v = 0; v < N + T; v++) ws->comp[v] = -1;
+  int label = 0;
+  for (int v0 = 0; v0 < N + T; v0++) {
+    if (ws->comp[v0] >= 0) continue;
+    int head = 0, tail = 0;
+    ws->queue[tail++] = v0;
+    ws->comp[v0] = label;
+    while (head < tail) {
+      int v = ws->queue[head++];
+      if (v >= N) {
+        const double *wc = w + (size_t) N * (size_t) (v - N);
+        for (int j = 0; j < N; j++) {
+          if (ws->comp[j] < 0 && wc[j] > 0.0) { ws->comp[j] = label; ws->queue[tail++] = j; }
+        }
+      } else {
+        for (int s = 0; s < T; s++) {
+          if (ws->comp[N + s] < 0 && w[(size_t) v + (size_t) N * s] > 0.0) {
+            ws->comp[N + s] = label;
+            ws->queue[tail++] = N + s;
+          }
+        }
+      }
+    }
+    label++;
+  }
+}
+
 /* ------------------------------------------------------------------------ */
 /* Local estimator                                                           */
 /* ------------------------------------------------------------------------ */
 
 /* Serial or parallel local estimate on a prepared panel. The function
  * processes the cells of the same unit in time order. Thus, the warm starts
- * are deterministic. */
+ * are deterministic. With parallel = 0, the function can use the workspace
+ * ws_ext and the array omega_ext (length N) of the caller. If lu is not 0,
+ * prep_dist must give a row to each unit with a treated cell. */
+/* The mean of the finite values of x. The usual sum of very large values can
+ * be infinite. Then this function divides each value by the largest absolute
+ * value before the sum. Thus, the mean of finite values is finite. Call it
+ * only after the usual sum fails, so that the usual results do not change. */
+static double mean_scaled(const double *x, size_t n) {
+  double m = 0.0, s = 0.0;
+  size_t c = 0;
+  for (size_t i = 0; i < n; i++) if (isfinite(x[i]) && fabs(x[i]) > m) m = fabs(x[i]);
+  for (size_t i = 0; i < n; i++) if (isfinite(x[i])) { s += x[i] / m; c++; }
+  if (c == 0) return NAN;
+  return (m > 0.0) ? m * (s / (double) c) : 0.0;
+}
+
 static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
                                const int *rows, double lt, double lu, double ln,
-                               const trop_opts *o, int parallel, double *tau,
-                               double *att, int *n_used, int *n_skipped, int *n_nonconv,
-                               double *phi) {
+                               const trop_opts *o, int parallel, ws_t *ws_ext,
+                               double *omega_ext, double *tau, double *att,
+                               trop_counts *cnt, unsigned char *status, double *phi) {
   int N = q->N, T = q->T, pf = q->pf;
   size_t NT = (size_t) N * (size_t) T;
   for (size_t c = 0; c < NT; c++) tau[c] = NAN;
+  if (status) memset(status, 0, NT);
   double *phisum = NULL;
   if (phi && pf > 0) {
     phisum = (double *) calloc((size_t) N * (size_t) pf, sizeof(double));
@@ -840,15 +996,16 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
   double *decay = (double *) malloc((size_t) T * sizeof(double));
   if (!decay) { free(phisum); return TROP_ERR_ALLOC; }
   local_time_decay(T, lt, decay);
-  int err = 0, skipped = 0, nonconv = 0;
+  int ext = (!parallel && ws_ext && omega_ext);
+  int err = 0, skipped = 0, nonconv = 0, failed = 0;
   int nth = parallel ? nthreads(o) : 1;
 #ifdef _OPENMP
-#pragma omp parallel num_threads(nth) reduction(+:skipped, nonconv)
+#pragma omp parallel num_threads(nth) reduction(+:skipped, nonconv, failed)
 #endif
   {
     trop_qos_enter(o);
-    ws_t *ws = ws_new(N, T, pf);
-    double *omega = (double *) malloc((size_t) N * sizeof(double));
+    ws_t *ws = ext ? ws_ext : ws_new(N, T, pf);
+    double *omega = ext ? omega_ext : (double *) malloc((size_t) N * sizeof(double));
     if (!ws || !omega) {
 #ifdef _OPENMP
 #pragma omp atomic write
@@ -869,26 +1026,50 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
         if (W[s] != 1 || !obs[s]) continue;
         size_t c = (size_t) i + (size_t) N * t;
         if (!isfinite(q->Y[c]) || !(obs[s])) continue;
+        if (lu != 0.0 && q->drow[i] < 0) {
+#ifdef _OPENMP
+#pragma omp atomic write
+#endif
+          err = 2;
+          break;
+        }
         local_weights(q, i, t, lu, 0, ws->w, decay, omega);
-        if (!estimable(ws, ws->w, i, t)) { skipped++; continue; }
+        if (!estimable(ws, ws->w, i, t)) {
+          skipped++;
+          if (status) status[c] = 2;
+          continue;
+        }
         if (!started || !o->warm) { ws_cold(ws); started = 1; }
         int it = 0;
-        if (!fit_any(ws, q->Y, ws->w, ln, o, &it)) nonconv++;
+        int conv = fit_any(ws, q->Y, ws->w, ln, o, &it);
         double yc = (pf > 0) ? ws->Yx[c] : q->Y[c];
-        tau[c] = yc - ws->alpha[i] - ws->beta[t] - ws->L[c];
+        double v = yc - ws->alpha[i] - ws->beta[t] - ws->L[c];
+        if (ws->fail || !isfinite(v)) {
+          /* The next fit of this unit starts from zero. */
+          failed++;
+          started = 0;
+          if (status) status[c] = 3;
+          continue;
+        }
+        if (!conv) nonconv++;
+        tau[c] = v;
+        if (status) status[c] = 1;
         if (phisum) for (int k = 0; k < pf; k++) phisum[(size_t) i * pf + k] += ws->phi[k];
       }
     }
-    ws_free(ws);
-    free(omega);
+    if (!ext) {
+      ws_free(ws);
+      free(omega);
+    }
     trop_qos_leave(o);
   }
   free(decay);
-  if (err) { free(phisum); return TROP_ERR_ALLOC; }
+  if (err) { free(phisum); return err == 2 ? TROP_ERR_INPUT : TROP_ERR_ALLOC; }
   double sum = 0.0;
   int used = 0;
   for (size_t c = 0; c < NT; c++) if (isfinite(tau[c])) { sum += tau[c]; used++; }
   *att = (used > 0) ? sum / (double) used : NAN;
+  if (used > 0 && !isfinite(*att)) *att = mean_scaled(tau, NT);
   if (phi) {
     for (int k = 0; k < q->p; k++) phi[k] = (pf == 0) ? q->phi_res[k] : 0.0;
     if (phisum) {
@@ -898,21 +1079,47 @@ static int local_estimate_prep(const prep_t *q, const int *W, const int *obs,
     }
   }
   free(phisum);
-  if (n_used) *n_used = used;
-  if (n_skipped) *n_skipped = skipped;
-  if (n_nonconv) *n_nonconv = nonconv;
+  if (cnt) {
+    cnt->used = used;
+    cnt->skipped = skipped;
+    cnt->nonconv = nonconv;
+    cnt->failed = failed;
+  }
   return TROP_OK;
+}
+
+/* Units with a treated cell with an outcome. The rows of the bootstrap map
+ * each row to its original unit. rows can be NULL. */
+static void treated_units(int N, int T, const int *W, const int *obs, const int *rows,
+                          unsigned char *need) {
+  for (int i = 0; i < N; i++) {
+    int src = rows ? rows[i] : i;
+    need[i] = 0;
+    for (int t = 0; t < T; t++) {
+      size_t s = (size_t) src + (size_t) N * t;
+      if (W[s] == 1 && obs[s]) { need[i] = 1; break; }
+    }
+  }
 }
 
 int trop_local_estimate(const trop_panel *p, double lam_time, double lam_unit,
                         double lam_nn, const trop_opts *opt, double *tau,
-                        double *att, int *n_used, int *n_skipped, int *n_nonconv,
-                        double *phi) {
+                        double *att, trop_counts *cnt, double *phi) {
   prep_t *q = prep_new(p->N, p->T, p->p);
   if (!q) return TROP_ERR_ALLOC;
-  prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, lam_unit != 0.0);
-  int rc = local_estimate_prep(q, p->W, p->obs, NULL, lam_time, lam_unit, lam_nn,
-                               opt, 1, tau, att, n_used, n_skipped, n_nonconv, phi);
+  prep_fill(q, p->Y, p->W, p->obs, p->X, NULL);
+  int rc = TROP_OK;
+  if (lam_unit != 0.0) {
+    unsigned char *need = (unsigned char *) malloc((size_t) p->N);
+    if (!need) { prep_free(q); return TROP_ERR_ALLOC; }
+    treated_units(p->N, p->T, p->W, p->obs, NULL, need);
+    rc = prep_dist(q, need, 1, opt);
+    free(need);
+  }
+  if (rc == TROP_OK) {
+    rc = local_estimate_prep(q, p->W, p->obs, NULL, lam_time, lam_unit, lam_nn,
+                             opt, 1, NULL, NULL, tau, att, cnt, NULL, phi);
+  }
   prep_free(q);
   return rc;
 }
@@ -923,7 +1130,7 @@ int trop_residualize(const trop_panel *p, const trop_opts *opt, double *phi) {
   ws_t *ws = ws_new(p->N, p->T, p->p);
   int rc = TROP_ERR_ALLOC;
   if (q && ws) {
-    prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, 0);
+    prep_fill(q, p->Y, p->W, p->obs, p->X, NULL);
     prep_residualize(q, ws, opt);
     memcpy(phi, q->phi_res, (size_t) p->p * sizeof(double));
     rc = TROP_OK;
@@ -938,25 +1145,50 @@ static int cmp_int(const void *a, const void *b) {
   return (x > y) - (x < y);
 }
 
-static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
-                            const int *cells_in, int n_cells_in, const trop_opts *o,
-                            double *Q, int *n_valid, int *n_nonconv) {
-  int N = q->N, T = q->T;
-  size_t NT = (size_t) N * (size_t) T;
-  int n_cells = 0;
-  int *cells = NULL;
+/* The valid cells of the leave-one-out criterion: the given cells that are
+ * observed control cells, or all such cells if n_cells_in is 0. The caller
+ * frees *out. */
+static int loocv_cells(const prep_t *q, const int *cells_in, int n_cells_in, int **out,
+                       int *n_out) {
+  size_t NT = (size_t) q->N * (size_t) q->T;
+  int n = 0;
+  int *cells = (int *) malloc((n_cells_in > 0 ? (size_t) n_cells_in : NT) * sizeof(int) + 1);
+  if (!cells) return TROP_ERR_ALLOC;
   if (n_cells_in > 0) {
-    cells = (int *) malloc((size_t) n_cells_in * sizeof(int));
-    if (!cells) return TROP_ERR_ALLOC;
     for (int k = 0; k < n_cells_in; k++) {
       int c = cells_in[k];
-      if (c >= 0 && (size_t) c < NT && q->ctrl[c]) cells[n_cells++] = c;
+      if (c >= 0 && (size_t) c < NT && q->ctrl[c]) cells[n++] = c;
     }
   } else {
-    cells = (int *) malloc(NT * sizeof(int));
-    if (!cells) return TROP_ERR_ALLOC;
-    for (size_t c = 0; c < NT; c++) if (q->ctrl[c]) cells[n_cells++] = (int) c;
+    for (size_t c = 0; c < NT; c++) if (q->ctrl[c]) cells[n++] = (int) c;
   }
+  *out = cells;
+  *n_out = n;
+  return TROP_OK;
+}
+
+/* Distance rows for the units of the cells of the criterion. */
+static int loocv_dist(prep_t *q, const int *cells_in, int n_cells_in, const trop_opts *o) {
+  int *cells = NULL, n = 0;
+  int rc = loocv_cells(q, cells_in, n_cells_in, &cells, &n);
+  if (rc != TROP_OK) return rc;
+  unsigned char *need = (unsigned char *) calloc((size_t) q->N, 1);
+  if (!need) { free(cells); return TROP_ERR_ALLOC; }
+  for (int k = 0; k < n; k++) need[cells[k] % q->N] = 1;
+  rc = prep_dist(q, need, 1, o);
+  free(need);
+  free(cells);
+  return rc;
+}
+
+static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
+                            const int *cells_in, int n_cells_in, const trop_opts *o,
+                            double *Q, trop_counts *cnt) {
+  int N = q->N, T = q->T;
+  int n_cells = 0;
+  int *cells = NULL;
+  int rc0 = loocv_cells(q, cells_in, n_cells_in, &cells, &n_cells);
+  if (rc0 != TROP_OK) return rc0;
   /* Order by unit, then time, so each unit's cells chain warm starts. */
   int *key = (int *) malloc((size_t) (n_cells > 0 ? n_cells : 1) * sizeof(int));
   double *tau = (double *) malloc((size_t) (n_cells > 0 ? n_cells : 1) * sizeof(double));
@@ -973,10 +1205,10 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
   double *decay = (double *) malloc((size_t) T * sizeof(double));
   if (!decay) { free(cells); free(key); free(tau); free(ustart); return TROP_ERR_ALLOC; }
   local_time_decay(T, lt, decay);
-  int err = 0, nonconv = 0;
+  int err = 0, nonconv = 0, failed = 0, skipped = 0;
   int nth = nthreads(o);
 #ifdef _OPENMP
-#pragma omp parallel num_threads(nth) reduction(+:nonconv)
+#pragma omp parallel num_threads(nth) reduction(+:nonconv, failed, skipped)
 #endif
   {
     trop_qos_enter(o);
@@ -999,13 +1231,28 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
       for (int k = ustart[i]; k < ustart[i + 1]; k++) {
         int t = key[k] % T;
         size_t c = (size_t) i + (size_t) N * t;
+        if (lu != 0.0 && q->drow[i] < 0) {
+#ifdef _OPENMP
+#pragma omp atomic write
+#endif
+          err = 2;
+          break;
+        }
         local_weights(q, i, t, lu, 1, ws->w, decay, omega);
-        if (!estimable(ws, ws->w, i, t)) { tau[k] = NAN; continue; }
+        if (!estimable(ws, ws->w, i, t)) { tau[k] = NAN; skipped++; continue; }
         if (!started || !o->warm) { ws_cold(ws); started = 1; }
         int it = 0;
-        if (!fit_any(ws, q->Y, ws->w, ln, o, &it)) nonconv++;
+        int conv = fit_any(ws, q->Y, ws->w, ln, o, &it);
         double yc = (q->pf > 0) ? ws->Yx[c] : q->Y[c];
-        tau[k] = yc - ws->alpha[i] - ws->beta[t] - ws->L[c];
+        double v = yc - ws->alpha[i] - ws->beta[t] - ws->L[c];
+        if (ws->fail || !isfinite(v)) {
+          tau[k] = NAN;
+          failed++;
+          started = 0;
+          continue;
+        }
+        if (!conv) nonconv++;
+        tau[k] = v;
       }
     }
     ws_free(ws);
@@ -1015,14 +1262,18 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
   free(decay);
   int rc = TROP_OK;
   if (err) {
-    rc = TROP_ERR_ALLOC;
+    rc = (err == 2) ? TROP_ERR_INPUT : TROP_ERR_ALLOC;
   } else {
     double sum = 0.0;
     int valid = 0;
     for (int k = 0; k < n_cells; k++) if (isfinite(tau[k])) { sum += tau[k] * tau[k]; valid++; }
     *Q = (valid > 0) ? sum : INFINITY;
-    if (n_valid) *n_valid = valid;
-    if (n_nonconv) *n_nonconv = nonconv;
+    if (cnt) {
+      cnt->used = valid;
+      cnt->skipped = skipped;
+      cnt->nonconv = nonconv;
+      cnt->failed = failed;
+    }
   }
   free(cells); free(key); free(tau); free(ustart);
   return rc;
@@ -1030,12 +1281,14 @@ static int local_loocv_prep(const prep_t *q, double lt, double lu, double ln,
 
 int trop_local_loocv(const trop_panel *p, double lam_time, double lam_unit,
                      double lam_nn, const int *cells, int n_cells,
-                     const trop_opts *opt, double *Q, int *n_valid, int *n_nonconv) {
+                     const trop_opts *opt, double *Q, trop_counts *cnt) {
   prep_t *q = prep_new(p->N, p->T, p->p);
   if (!q) return TROP_ERR_ALLOC;
-  prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, lam_unit != 0.0);
-  int rc = local_loocv_prep(q, lam_time, lam_unit, lam_nn, cells, n_cells, opt,
-                            Q, n_valid, n_nonconv);
+  prep_fill(q, p->Y, p->W, p->obs, p->X, NULL);
+  int rc = (lam_unit != 0.0) ? loocv_dist(q, cells, n_cells, opt) : TROP_OK;
+  if (rc == TROP_OK) {
+    rc = local_loocv_prep(q, lam_time, lam_unit, lam_nn, cells, n_cells, opt, Q, cnt);
+  }
   prep_free(q);
   return rc;
 }
@@ -1045,7 +1298,7 @@ int trop_local_loocv(const trop_panel *p, double lam_time, double lam_unit,
 /* ------------------------------------------------------------------------ */
 
 typedef struct {
-  double *v; /* rows of (time, unit, nn, score) */
+  double *v; /* rows of TROP_TRACE_COLS values: (time, unit, nn, score, counts) */
   int n, cap;
 } cache_t;
 
@@ -1054,24 +1307,45 @@ static int same(double a, double b) {
   return a == b;
 }
 
-static int cache_get(const cache_t *c, double lt, double lu, double ln, double *score) {
+/* 1 if the candidate (s1, n1) is better than (s2, n2). A candidate with a
+ * finite score is better than a candidate without one. A candidate with more
+ * valid cells or sets is better. With the same number, the smaller score is
+ * better. A score that uses fewer cells is a sum over fewer terms. Thus, the
+ * scores of two candidates are comparable only with the same number. */
+static int better(double s1, int n1, double s2, int n2) {
+  if (!isfinite(s1)) return 0;
+  if (!isfinite(s2)) return 1;
+  if (n1 != n2) return n1 > n2;
+  return s1 < s2;
+}
+
+static int cache_get(const cache_t *c, double lt, double lu, double ln, double *score,
+                     int *n_valid) {
   for (int k = 0; k < c->n; k++) {
-    const double *r = c->v + 4 * (size_t) k;
-    if (same(r[0], lt) && same(r[1], lu) && same(r[2], ln)) { *score = r[3]; return 1; }
+    const double *r = c->v + TROP_TRACE_COLS * (size_t) k;
+    if (same(r[0], lt) && same(r[1], lu) && same(r[2], ln)) {
+      *score = r[3];
+      if (n_valid) *n_valid = isfinite(r[4]) ? (int) r[4] : 0;
+      return 1;
+    }
   }
   return 0;
 }
 
-static int cache_put(cache_t *c, double lt, double lu, double ln, double score) {
+static int cache_put(cache_t *c, double lt, double lu, double ln, double score,
+                     const trop_counts *cnt) {
   if (c->n == c->cap) {
     int cap = c->cap ? 2 * c->cap : 64;
-    double *v = (double *) realloc(c->v, (size_t) cap * 4 * sizeof(double));
+    double *v = (double *) realloc(c->v, (size_t) cap * TROP_TRACE_COLS * sizeof(double));
     if (!v) return TROP_ERR_ALLOC;
     c->v = v;
     c->cap = cap;
   }
-  double *r = c->v + 4 * (size_t) c->n;
+  double *r = c->v + TROP_TRACE_COLS * (size_t) c->n;
   r[0] = lt; r[1] = lu; r[2] = ln; r[3] = score;
+  r[4] = cnt ? (double) cnt->used : NAN;
+  r[5] = cnt ? (double) cnt->nonconv : NAN;
+  r[6] = cnt ? (double) cnt->failed : NAN;
   c->n++;
   return TROP_OK;
 }
@@ -1081,7 +1355,8 @@ static void cache_trace(const cache_t *c, double *trace, int max_trace, int *n_e
   if (!trace) return;
   int m = c->n < max_trace ? c->n : max_trace;
   for (int k = 0; k < m; k++)
-    for (int j = 0; j < 4; j++) trace[k + (size_t) max_trace * j] = c->v[4 * (size_t) k + j];
+    for (int j = 0; j < TROP_TRACE_COLS; j++)
+      trace[k + (size_t) max_trace * j] = c->v[TROP_TRACE_COLS * (size_t) k + j];
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1096,30 +1371,35 @@ typedef struct {
   cache_t cache;
 } lsearch_t;
 
-static int lsearch_eval(lsearch_t *s, double lt, double lu, double ln, double *score) {
-  if (cache_get(&s->cache, lt, lu, ln, score)) return TROP_OK;
+static int lsearch_eval(lsearch_t *s, double lt, double lu, double ln, double *score,
+                        int *n_valid) {
+  if (cache_get(&s->cache, lt, lu, ln, score, n_valid)) return TROP_OK;
   double Q = INFINITY;
-  int nv = 0, nc = 0;
-  int rc = local_loocv_prep(s->q, lt, lu, ln, s->cells, s->n_cells, s->o, &Q, &nv, &nc);
+  trop_counts cnt = {0, 0, 0, 0};
+  int rc = local_loocv_prep(s->q, lt, lu, ln, s->cells, s->n_cells, s->o, &Q, &cnt);
   if (rc != TROP_OK) return rc;
   *score = Q;
-  return cache_put(&s->cache, lt, lu, ln, Q);
+  if (n_valid) *n_valid = cnt.used;
+  return cache_put(&s->cache, lt, lu, ln, Q, &cnt);
 }
 
-/* Minimum along one coordinate. The value of which is 0 for time, 1 for unit,
- * and 2 for nn. For equal scores, the function keeps the first grid value. If
- * all scores are infinite, the function returns the first grid value. */
+/* Best value along one coordinate, with better(). The value of which is 0 for
+ * time, 1 for unit, and 2 for nn. For equal scores, the function keeps the
+ * first grid value. If all scores are infinite, the function returns the
+ * first grid value. */
 static int lsearch_line(lsearch_t *s, int which, const double *grid, int ng,
                         double lt, double lu, double ln, trop_interrupt_fn chk,
                         double *best_v, double *best_s) {
   double bv = grid[0], bs = INFINITY;
+  int bn = 0;
   for (int g = 0; g < ng; g++) {
     if (chk && chk()) return TROP_ERR_INTERRUPT;
     double a = lt, b = lu, c = ln, sc = INFINITY;
+    int nv = 0;
     if (which == 0) a = grid[g]; else if (which == 1) b = grid[g]; else c = grid[g];
-    int rc = lsearch_eval(s, a, b, c, &sc);
+    int rc = lsearch_eval(s, a, b, c, &sc, &nv);
     if (rc != TROP_OK) return rc;
-    if (sc < bs) { bs = sc; bv = grid[g]; }
+    if (better(sc, nv, bs, bn)) { bs = sc; bn = nv; bv = grid[g]; }
   }
   *best_v = bv;
   *best_s = bs;
@@ -1137,10 +1417,11 @@ int trop_local_search(const trop_panel *p, const double *g_time, int n_time,
   for (int g = 0; g < n_unit; g++) if (g_unit[g] != 0.0) need_dist = 1;
   prep_t *q = prep_new(p->N, p->T, p->p);
   if (!q) return TROP_ERR_ALLOC;
-  prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, need_dist);
+  prep_fill(q, p->Y, p->W, p->obs, p->X, NULL);
   lsearch_t s = { q, cells, n_cells, opt, { NULL, 0, 0 } };
   double sc, lt0, lu0, ln0, lt, lu, ln, score = INFINITY, prev = INFINITY;
   int rc;
+  if (need_dist && (rc = loocv_dist(q, cells, n_cells, opt)) != TROP_OK) goto done;
   /* Stage 1: univariate searches with the other components disabled. */
   if ((rc = lsearch_line(&s, 0, g_time, n_time, 0.0, 0.0, INFINITY, chk, &lt0, &sc)) != TROP_OK) goto done;
   if ((rc = lsearch_line(&s, 2, g_nn, n_nn, 0.0, 0.0, INFINITY, chk, &ln0, &sc)) != TROP_OK) goto done;
@@ -1154,7 +1435,7 @@ int trop_local_search(const trop_panel *p, const double *g_time, int n_time,
     if (fabs(score - prev) < 1e-6) break;
     prev = score;
   }
-  if ((rc = lsearch_eval(&s, lt, lu, ln, &score)) != TROP_OK) goto done;
+  if ((rc = lsearch_eval(&s, lt, lu, ln, &score, NULL)) != TROP_OK) goto done;
   best[0] = lt; best[1] = lu; best[2] = ln;
   *best_score = score;
   cache_trace(&s.cache, trace, max_trace, n_evals);
@@ -1172,7 +1453,8 @@ static int global_estimate_ws(ws_t *ws, const prep_t *q, const int *W, const int
                               const int *rows, const int *treated, int n_treated, int k,
                               double lt, double lu, double ln, const trop_opts *o,
                               double *theta, double *omega, double *avg,
-                              double *tau, double *att, int *converged, double *phi) {
+                              double *tau, double *att, trop_counts *cnt,
+                              unsigned char *status, double *phi) {
   int N = q->N, T = q->T, pre = T - k;
   if (n_treated < 1 || k < 1 || pre < 1) return TROP_ERR_INPUT;
   double center = (double) T - (double) k / 2.0;
@@ -1208,28 +1490,73 @@ static int global_estimate_ws(ws_t *ws, const prep_t *q, const int *W, const int
       ws->w[c] = q->ctrl[c] ? omega[j] * theta[s] : 0.0;
     }
   }
+  /* A treated cell is identified if its unit and its period are in the same
+   * component of the cells with a positive weight. */
+  components(ws, ws->w);
   ws_cold(ws);
   ws_use(ws, q);
   int it = 0;
   int conv = fit_any(ws, q->Y, ws->w, ln, o, &it);
-  if (converged) *converged = conv;
+  int fail = ws->fail;
   const double *Yf = (q->pf > 0) ? ws->Yx : q->Y;
+  size_t NT = (size_t) N * (size_t) T;
+  if (status) memset(status, 0, NT);
   double sum = 0.0;
-  int used = 0;
+  int used = 0, skipped = 0;
   for (int s = 0; s < T; s++) {
     for (int j = 0; j < N; j++) {
       int src = rows ? rows[j] : j;
       size_t c = (size_t) j + (size_t) N * s, cs = (size_t) src + (size_t) N * s;
       double v = NAN;
       if (W[cs] == 1 && obs[cs]) {
-        v = Yf[c] - ws->alpha[j] - ws->beta[s] - ws->L[c];
-        sum += v;
-        used++;
+        if (ws->comp[j] != ws->comp[N + s]) {
+          skipped++;
+          if (status) status[c] = 2;
+        } else if (!fail) {
+          v = Yf[c] - ws->alpha[j] - ws->beta[s] - ws->L[c];
+          if (isfinite(v)) {
+            sum += v;
+            used++;
+            if (status) status[c] = 1;
+          } else {
+            fail = 1;
+            v = NAN;
+          }
+        }
       }
       if (tau) tau[c] = v;
     }
   }
+  if (fail) {
+    /* One failed value makes the fit fail. Then no cell has an effect. */
+    if (tau) for (size_t c = 0; c < NT; c++) tau[c] = NAN;
+    if (status) for (size_t c = 0; c < NT; c++) if (status[c] == 1) status[c] = 3;
+    sum = 0.0;
+    used = 0;
+  }
   *att = (used > 0) ? sum / (double) used : NAN;
+  if (used > 0 && !isfinite(*att)) {
+    /* The sum is too large. Calculate the mean again with scaled values. */
+    double m = 0.0, sc = 0.0;
+    for (int pass = 0; pass < 2; pass++) {
+      for (int s = 0; s < T; s++) {
+        for (int j = 0; j < N; j++) {
+          int src = rows ? rows[j] : j;
+          size_t c = (size_t) j + (size_t) N * s, cs = (size_t) src + (size_t) N * s;
+          if (W[cs] != 1 || !obs[cs] || ws->comp[j] != ws->comp[N + s]) continue;
+          double v = Yf[c] - ws->alpha[j] - ws->beta[s] - ws->L[c];
+          if (pass == 0) { if (fabs(v) > m) m = fabs(v); } else sc += v / m;
+        }
+      }
+    }
+    *att = m * (sc / (double) used);
+  }
+  if (cnt) {
+    cnt->used = used;
+    cnt->skipped = skipped;
+    cnt->nonconv = (!fail && !conv && used > 0) ? 1 : 0;
+    cnt->failed = fail ? 1 : 0;
+  }
   if (phi) {
     for (int m = 0; m < q->p; m++) phi[m] = (q->pf > 0) ? ws->phi[m] : q->phi_res[m];
   }
@@ -1238,7 +1565,7 @@ static int global_estimate_ws(ws_t *ws, const prep_t *q, const int *W, const int
 
 int trop_global_estimate(const trop_panel *p, const int *treated, int n_treated,
                          int k, double lam_time, double lam_unit, double lam_nn,
-                         const trop_opts *opt, double *tau, double *att, int *converged,
+                         const trop_opts *opt, double *tau, double *att, trop_counts *cnt,
                          double *phi) {
   int N = p->N, T = p->T;
   prep_t *q = prep_new(N, T, p->p);
@@ -1248,10 +1575,9 @@ int trop_global_estimate(const trop_panel *p, const int *treated, int n_treated,
   double *avg = (double *) malloc((size_t) T * sizeof(double));
   int rc = TROP_ERR_ALLOC;
   if (q && ws && theta && omega && avg) {
-    prep_fill(q, p->Y, p->W, p->obs, p->X, NULL, 0);
+    prep_fill(q, p->Y, p->W, p->obs, p->X, NULL);
     rc = global_estimate_ws(ws, q, p->W, p->obs, NULL, treated, n_treated, k, lam_time,
-                            lam_unit, lam_nn, opt, theta, omega, avg, tau, att, converged,
-                            phi);
+                            lam_unit, lam_nn, opt, theta, omega, avg, tau, att, cnt, NULL, phi);
   }
   prep_free(q); ws_free(ws); free(theta); free(omega); free(avg);
   return rc;
@@ -1259,15 +1585,15 @@ int trop_global_estimate(const trop_panel *p, const int *treated, int n_treated,
 
 int trop_global_placebo(const trop_panel *pc, int k, const int *sets, int n_sets,
                         int set_size, double lam_time, double lam_unit, double lam_nn,
-                        const trop_opts *opt, double *rmse, int *n_valid) {
+                        const trop_opts *opt, double *rmse, trop_counts *cnt) {
   int N = pc->N, T = pc->T;
   size_t NT = (size_t) N * (size_t) T;
   double *ate = (double *) malloc((size_t) (n_sets > 0 ? n_sets : 1) * sizeof(double));
   if (!ate) return TROP_ERR_ALLOC;
-  int err = 0;
+  int err = 0, nonconv = 0, failed = 0, used = 0, skipped = 0;
   int nth = nthreads(opt);
 #ifdef _OPENMP
-#pragma omp parallel num_threads(nth)
+#pragma omp parallel num_threads(nth) reduction(+:nonconv, failed, used, skipped)
 #endif
   {
     trop_qos_enter(opt);
@@ -1277,7 +1603,8 @@ int trop_global_placebo(const trop_panel *pc, int k, const int *sets, int n_sets
     double *theta = (double *) malloc((size_t) T * sizeof(double));
     double *omega = (double *) malloc((size_t) N * sizeof(double));
     double *avg = (double *) malloc((size_t) T * sizeof(double));
-    if (!q || !ws || !Wb || !theta || !omega || !avg) {
+    int *tr = (int *) malloc((size_t) (set_size > 0 ? set_size : 1) * sizeof(int));
+    if (!q || !ws || !Wb || !theta || !omega || !avg || !tr) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
@@ -1292,14 +1619,29 @@ int trop_global_placebo(const trop_panel *pc, int k, const int *sets, int n_sets
       memset(Wb, 0, NT * sizeof(int));
       for (int u = 0; u < set_size; u++)
         for (int s = T - k; s < T; s++) Wb[(size_t) set[u] + (size_t) N * s] = 1;
-      prep_fill(q, pc->Y, Wb, pc->obs, pc->X, NULL, 0);
+      prep_fill(q, pc->Y, Wb, pc->obs, pc->X, NULL);
+      /* As in the fit on the data, a placebo unit is a treated unit only if
+       * it has a held-out cell with an outcome. */
+      int nt = 0;
+      for (int u = 0; u < set_size; u++) {
+        for (int s = T - k; s < T; s++) {
+          if (pc->obs[(size_t) set[u] + (size_t) N * s]) { tr[nt++] = set[u]; break; }
+        }
+      }
       double a = NAN;
-      int conv = 0;
-      if (global_estimate_ws(ws, q, Wb, pc->obs, NULL, set, set_size, k, lam_time, lam_unit,
-                             lam_nn, opt, theta, omega, avg, NULL, &a, &conv, NULL) != TROP_OK) a = NAN;
+      trop_counts c1 = {0, 0, 0, 0};
+      if (nt == 0 ||
+          global_estimate_ws(ws, q, Wb, pc->obs, NULL, tr, nt, k, lam_time, lam_unit,
+                             lam_nn, opt, theta, omega, avg, NULL, &a, &c1, NULL, NULL) != TROP_OK) {
+        a = NAN;
+      }
+      nonconv += c1.nonconv;
+      failed += c1.failed;
+      skipped += c1.skipped;
+      if (isfinite(a)) used += c1.used;
       ate[m] = a;
     }
-    prep_free(q); ws_free(ws); free(Wb); free(theta); free(omega); free(avg);
+    prep_free(q); ws_free(ws); free(Wb); free(theta); free(omega); free(avg); free(tr);
     trop_qos_leave(opt);
   }
   if (err) { free(ate); return TROP_ERR_ALLOC; }
@@ -1307,7 +1649,23 @@ int trop_global_placebo(const trop_panel *pc, int k, const int *sets, int n_sets
   int v = 0;
   for (int m = 0; m < n_sets; m++) if (isfinite(ate[m])) { s2 += ate[m] * ate[m]; v++; }
   *rmse = (v > 0) ? sqrt(s2 / (double) v) : INFINITY;
-  if (n_valid) *n_valid = v;
+  if (v > 0 && !isfinite(*rmse)) {
+    /* The sum of squares is too large. Use scaled values. */
+    double mx = 0.0, t2 = 0.0;
+    for (int m = 0; m < n_sets; m++) if (isfinite(ate[m]) && fabs(ate[m]) > mx) mx = fabs(ate[m]);
+    for (int m = 0; m < n_sets; m++) if (isfinite(ate[m])) t2 += (ate[m] / mx) * (ate[m] / mx);
+    *rmse = mx * sqrt(t2 / (double) v);
+  }
+  /* The count of valid values is the number of placebo cells with an effect,
+   * not the number of sets. A set can lose some of its cells, because the
+   * untreated cells do not identify them. Then the ATE of the set uses fewer
+   * cells. Thus, the search compares tuning values first by this count. */
+  if (cnt) {
+    cnt->used = used;
+    cnt->skipped = skipped;
+    cnt->nonconv = nonconv;
+    cnt->failed = failed;
+  }
   free(ate);
   return TROP_OK;
 }
@@ -1329,17 +1687,20 @@ int trop_global_search(const trop_panel *pc, int k, const int *sets, int n_sets,
       const double *grid = (which == 0) ? g_unit : (which == 1) ? g_time : g_nn;
       int ng = (which == 0) ? n_unit : (which == 1) ? n_time : n_nn;
       double bv = grid[0], bs = INFINITY;
+      int bn = 0;
       for (int g = 0; g < ng; g++) {
         if (chk && chk()) { rc = TROP_ERR_INTERRUPT; goto done; }
         double a = lt, b = lu, c = ln, sc = INFINITY;
+        int nv = 0;
         if (which == 0) b = grid[g]; else if (which == 1) a = grid[g]; else c = grid[g];
-        if (!cache_get(&cache, a, b, c, &sc)) {
-          int nv = 0;
-          rc = trop_global_placebo(pc, k, sets, n_sets, set_size, a, b, c, opt, &sc, &nv);
+        if (!cache_get(&cache, a, b, c, &sc, &nv)) {
+          trop_counts c1 = {0, 0, 0, 0};
+          rc = trop_global_placebo(pc, k, sets, n_sets, set_size, a, b, c, opt, &sc, &c1);
           if (rc != TROP_OK) goto done;
-          if ((rc = cache_put(&cache, a, b, c, sc)) != TROP_OK) goto done;
+          nv = c1.used;
+          if ((rc = cache_put(&cache, a, b, c, sc, &c1)) != TROP_OK) goto done;
         }
-        if (sc < bs) { bs = sc; bv = grid[g]; }
+        if (better(sc, nv, bs, bn)) { bs = sc; bn = nv; bv = grid[g]; }
       }
       if (which == 0) lu = bv; else if (which == 1) lt = bv; else { ln = bv; *best_score = bs; }
     }
@@ -1357,15 +1718,115 @@ done:
 /* Bootstrap (paper Algorithm 3)                                             */
 /* ------------------------------------------------------------------------ */
 
+/* Add the weighted effects of one draw to the sums of the groups. Each effect
+ * is divided by scale. If redo is not NULL, the function adds only to the
+ * groups with a value of redo that is not finite, and gw does not change. If
+ * gscale is not NULL, the weight of a unit in group g is uw / gscale[g]. */
+static void group_add(int N, int T, const double *tau, const int *rb, const int *gid,
+                      int n_layers, int n_groups, const double *uw, const double *gscale,
+                      int per_unit, double scale, const double *redo, double *gsum,
+                      double *gw, int *rcnt, int *touched) {
+  size_t NT = (size_t) N * (size_t) T;
+  if (!per_unit) {
+    for (int t = 0; t < T; t++) {
+      for (int i = 0; i < N; i++) {
+        double v = tau[(size_t) i + (size_t) N * t];
+        if (!isfinite(v)) continue;
+        size_t s = (size_t) rb[i] + (size_t) N * t;
+        double u = uw ? uw[rb[i]] : 1.0;
+        for (int l = 0; l < n_layers; l++) {
+          int g = gid[(size_t) l * NT + s];
+          if (g < 0 || g >= n_groups) continue;
+          double ug = gscale ? u / gscale[g] : u;
+          if (!redo) { gsum[g] += ug * v; gw[g] += ug; }
+          else if (!isfinite(redo[g])) gsum[g] += ug * (v / scale);
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < N; i++) {
+      double u = uw ? uw[rb[i]] : 1.0;
+      int nt = 0;
+      for (int t = 0; t < T; t++) {
+        if (!isfinite(tau[(size_t) i + (size_t) N * t])) continue;
+        size_t s = (size_t) rb[i] + (size_t) N * t;
+        for (int l = 0; l < n_layers; l++) {
+          int g = gid[(size_t) l * NT + s];
+          if (g >= 0 && g < n_groups && rcnt[g]++ == 0) touched[nt++] = g;
+        }
+      }
+      if (nt == 0) continue;
+      for (int t = 0; t < T; t++) {
+        double v = tau[(size_t) i + (size_t) N * t];
+        if (!isfinite(v)) continue;
+        size_t s = (size_t) rb[i] + (size_t) N * t;
+        for (int l = 0; l < n_layers; l++) {
+          int g = gid[(size_t) l * NT + s];
+          if (g < 0 || g >= n_groups) continue;
+          double cw = (gscale ? u / gscale[g] : u) / (double) rcnt[g];
+          if (!redo) { gsum[g] += cw * v; gw[g] += cw; }
+          else if (!isfinite(redo[g])) gsum[g] += cw * (v / scale);
+        }
+      }
+      for (int m = 0; m < nt; m++) rcnt[touched[m]] = 0;
+    }
+  }
+}
+
+/* Group means of one draw. Refer to trop_bootstrap() for the weights. A sum
+ * of very large effects can be infinite. Then the function calculates the
+ * mean of that group again with scaled effects. */
+static void group_means(int N, int T, const double *tau, const int *rb, const int *gid,
+                        int n_layers, int n_groups, const double *uw, const double *gscale,
+                        int per_unit, double *gsum, double *gw, int *rcnt, int *touched,
+                        double *out) {
+  for (int g = 0; g < n_groups; g++) { gsum[g] = 0.0; gw[g] = 0.0; }
+  group_add(N, T, tau, rb, gid, n_layers, n_groups, uw, gscale, per_unit, 1.0, NULL, gsum,
+            gw, rcnt, touched);
+  int bad = 0;
+  for (int g = 0; g < n_groups; g++) {
+    out[g] = (gw[g] > 0.0) ? gsum[g] / gw[g] : NAN;
+    if (gw[g] > 0.0 && !isfinite(out[g])) bad = 1;
+  }
+  if (!bad) return;
+  size_t NT = (size_t) N * (size_t) T;
+  double m = 0.0;
+  for (size_t c = 0; c < NT; c++) if (isfinite(tau[c]) && fabs(tau[c]) > m) m = fabs(tau[c]);
+  for (int g = 0; g < n_groups; g++) if (gw[g] > 0.0 && !isfinite(out[g])) gsum[g] = 0.0;
+  group_add(N, T, tau, rb, gid, n_layers, n_groups, uw, gscale, per_unit, m, out, gsum, gw,
+            rcnt, touched);
+  for (int g = 0; g < n_groups; g++) {
+    if (gw[g] > 0.0 && !isfinite(out[g])) out[g] = m * (gsum[g] / gw[g]);
+  }
+}
+
 int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
                    double lam_unit, double lam_nn, const int *rows, int B,
                    const trop_opts *opt, trop_interrupt_fn chk, double *draws,
-                   const int *gid, int n_layers, int n_groups, double *gdraws) {
+                   int *diag, const int *eligible, const int *gid, int n_layers,
+                   int n_groups, const double *uw, int per_unit, double *gdraws) {
   int N = p->N, T = p->T;
   int groups = gid != NULL && gdraws != NULL && n_layers > 0 && n_groups > 0 && method == 0;
-  size_t NT = (size_t) N * (size_t) T;
   if (gdraws && n_groups > 0) {
     for (size_t c = 0; c < (size_t) B * (size_t) n_groups; c++) gdraws[c] = NAN;
+  }
+  if (diag) for (size_t c = 0; c < (size_t) B * 5; c++) diag[c] = 0;
+  /* With weights, the weight of a unit in a group is divided by the largest
+   * weight of the units of that group in the data. A draw selects units of
+   * the data. Thus, the weights of a draw are 1 or less. A group with a small
+   * scale does not depend on the weights of the units of other groups. */
+  double *gscale = NULL;
+  if (groups && uw) {
+    gscale = (double *) calloc((size_t) n_groups, sizeof(double));
+    if (!gscale) return TROP_ERR_ALLOC;
+    size_t NT = (size_t) N * (size_t) T;
+    for (int l = 0; l < n_layers; l++) {
+      for (size_t c = 0; c < NT; c++) {
+        int g = gid[(size_t) l * NT + c];
+        double u = uw[c % (size_t) N];
+        if (g >= 0 && g < n_groups && u > gscale[g]) gscale[g] = u;
+      }
+    }
   }
   int nth = nthreads(opt);
   int chunk = 32 * nth;
@@ -1386,10 +1847,15 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
       int *Wb = (int *) malloc((size_t) N * (size_t) T * sizeof(int));
       int *ob = (int *) malloc((size_t) N * (size_t) T * sizeof(int));
       int *tr = (int *) malloc((size_t) N * sizeof(int));
+      unsigned char *need = (unsigned char *) malloc((size_t) N);
+      unsigned char *status = (unsigned char *) malloc((size_t) N * (size_t) T);
       double *gsum = groups ? (double *) malloc((size_t) n_groups * sizeof(double)) : NULL;
-      int *gcnt = groups ? (int *) malloc((size_t) n_groups * sizeof(int)) : NULL;
-      if (!q || !ws || !theta || !omega || !avg || !tau || !Wb || !ob || !tr ||
-          (groups && (!gsum || !gcnt))) {
+      double *gw = groups ? (double *) malloc((size_t) n_groups * sizeof(double)) : NULL;
+      double *gout = groups ? (double *) malloc((size_t) n_groups * sizeof(double)) : NULL;
+      int *rcnt = groups ? (int *) calloc((size_t) n_groups, sizeof(int)) : NULL;
+      int *touched = groups ? (int *) malloc((size_t) T * (size_t) n_layers * sizeof(int)) : NULL;
+      if (!q || !ws || !theta || !omega || !avg || !tau || !Wb || !ob || !tr || !need ||
+          !status || (groups && (!gsum || !gw || !gout || !rcnt || !touched))) {
 #ifdef _OPENMP
 #pragma omp atomic write
 #endif
@@ -1401,6 +1867,9 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
       for (int b = start; b < stop; b++) {
         if (err) continue;
         const int *rb = rows + (size_t) b * (size_t) N;
+        /* The fault test of this draw (refer to trop_opts). */
+        trop_opts od = *opt;
+        od.fault = (opt->fault & 4) ? ((b % 2 == 1) ? (opt->fault & 3) : 0) : (opt->fault & 3);
         int nt = 0;
         for (int i = 0; i < N; i++) {
           int any = 0;
@@ -1408,53 +1877,64 @@ int trop_bootstrap(const trop_panel *p, int method, int k, double lam_time,
             size_t s = (size_t) rb[i] + (size_t) N * t, d = (size_t) i + (size_t) N * t;
             Wb[d] = p->W[s];
             ob[d] = p->obs[s];
-            if (p->W[s] == 1) any = 1;
+            /* As in the fit on the data, a treated unit of the global method
+             * must have a treated cell with an outcome. */
+            if (p->W[s] == 1 && p->obs[s]) any = 1;
           }
           if (any) tr[nt++] = i;
         }
-        int need_dist = method == 0 && lam_unit != 0.0;
-        prep_fill(q, p->Y, p->W, p->obs, p->X, rb, need_dist && !(p->resid && p->p > 0));
-        if (p->resid && p->p > 0) {
-          prep_residualize(q, ws, opt);
-          if (need_dist) prep_dist(q);
-        }
+        prep_fill(q, p->Y, p->W, p->obs, p->X, rb);
+        if (p->resid && p->p > 0) prep_residualize(q, ws, &od);
         double a = NAN;
-        int rc;
+        trop_counts cnt = {0, 0, 0, 0};
+        int rc = TROP_OK;
         if (method == 0) {
-          int nu = 0, ns = 0, nc = 0;
-          rc = local_estimate_prep(q, Wb, ob, NULL, lam_time, lam_unit, lam_nn, opt, 0,
-                                   tau, &a, &nu, &ns, &nc, NULL);
+          if (lam_unit != 0.0) {
+            treated_units(N, T, Wb, ob, NULL, need);
+            rc = prep_dist(q, need, 0, &od);
+          }
+          if (rc == TROP_OK) {
+            rc = local_estimate_prep(q, Wb, ob, NULL, lam_time, lam_unit, lam_nn, &od, 0, ws,
+                                     omega, tau, &a, &cnt, status, NULL);
+          }
         } else {
-          int conv = 0;
           rc = (nt > 0) ? global_estimate_ws(ws, q, Wb, ob, NULL, tr, nt, k, lam_time,
-                                             lam_unit, lam_nn, opt, theta, omega, avg,
-                                             NULL, &a, &conv, NULL)
+                                             lam_unit, lam_nn, &od, theta, omega, avg,
+                                             NULL, &a, &cnt, status, NULL)
                         : TROP_ERR_INPUT;
         }
         draws[b] = (rc == TROP_OK) ? a : NAN;
-        if (groups && rc == TROP_OK) {
-          for (int g = 0; g < n_groups; g++) { gsum[g] = 0.0; gcnt[g] = 0; }
-          for (int t = 0; t < T; t++) {
-            for (int i = 0; i < N; i++) {
-              double v = tau[(size_t) i + (size_t) N * t];
-              if (!isfinite(v)) continue;
-              size_t s = (size_t) rb[i] + (size_t) N * t;
-              for (int l = 0; l < n_layers; l++) {
-                int g = gid[(size_t) l * NT + s];
-                if (g >= 0 && g < n_groups) { gsum[g] += v; gcnt[g]++; }
+        if (diag && rc == TROP_OK) {
+          /* A dropped cell has an effect in the fit on the data, but the
+           * untreated cells of the draw do not identify it. */
+          int dropped = 0;
+          if (eligible) {
+            for (int t = 0; t < T; t++) {
+              for (int i = 0; i < N; i++) {
+                if (status[(size_t) i + (size_t) N * t] == 2 &&
+                    eligible[(size_t) rb[i] + (size_t) N * t]) dropped++;
               }
             }
           }
-          for (int g = 0; g < n_groups; g++) {
-            if (gcnt[g] > 0) gdraws[(size_t) b + (size_t) B * g] = gsum[g] / gcnt[g];
-          }
+          diag[b] = cnt.used;
+          diag[(size_t) b + (size_t) B] = cnt.skipped;
+          diag[(size_t) b + 2 * (size_t) B] = cnt.nonconv;
+          diag[(size_t) b + 3 * (size_t) B] = cnt.failed;
+          diag[(size_t) b + 4 * (size_t) B] = dropped;
+        }
+        if (groups && rc == TROP_OK) {
+          group_means(N, T, tau, rb, gid, n_layers, n_groups, uw, gscale, per_unit, gsum, gw,
+                      rcnt, touched, gout);
+          for (int g = 0; g < n_groups; g++) gdraws[(size_t) b + (size_t) B * g] = gout[g];
         }
       }
       prep_free(q); ws_free(ws); free(theta); free(omega); free(avg); free(tau);
-      free(Wb); free(ob); free(tr); free(gsum); free(gcnt);
+      free(Wb); free(ob); free(tr); free(need); free(status); free(gsum); free(gw); free(gout);
+      free(rcnt); free(touched);
       trop_qos_leave(opt);
     }
-    if (!err && chk && chk()) return TROP_ERR_INTERRUPT;
+    if (!err && chk && chk()) { free(gscale); return TROP_ERR_INTERRUPT; }
   }
+  free(gscale);
   return err ? TROP_ERR_ALLOC : TROP_OK;
 }
